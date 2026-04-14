@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Med Math Tutor</title>
+<meta name="app-version" content="1">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
@@ -207,6 +208,66 @@
   .hl-key { background:rgba(34,197,94,0.2); padding:2px 5px; border-radius:4px; color:var(--green); font-weight:600; border-bottom:2px solid var(--green); }
   .hl-trap { background:rgba(239,68,68,0.12); padding:2px 5px; border-radius:4px; color:var(--red); opacity:0.6; text-decoration:line-through; }
   .hl-convert { background:rgba(245,158,11,0.2); padding:2px 5px; border-radius:4px; color:var(--orange); font-weight:600; border-bottom:2px dashed var(--orange); }
+
+  /* PHARM SECTION */
+  .pharm-subnav { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+  .pharm-subnav button { padding:7px 14px; border:none; border-radius:8px; cursor:pointer; font-size:0.82rem; font-weight:600; background:var(--bg); color:var(--text2); transition:all 0.2s; }
+  .pharm-subnav button:hover { color:var(--text); background:var(--surface2); }
+  .pharm-subnav button.active { background:var(--accent2); color:white; }
+
+  .med-card { background:var(--surface); border-radius:12px; padding:20px; border:1px solid var(--surface2); cursor:pointer; transition:all 0.3s; position:relative; overflow:hidden; }
+  .med-card:hover { border-color:var(--accent); transform:translateY(-2px); box-shadow:0 4px 16px rgba(59,130,246,0.15); }
+  .med-card.flipped { background:var(--bg); }
+  .med-card-name { font-size:1.15rem; font-weight:700; margin-bottom:6px; }
+  .med-card-class { font-size:0.85rem; color:var(--accent2); font-weight:600; margin-bottom:10px; }
+  .med-card-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .med-tag { padding:3px 10px; border-radius:20px; font-size:0.75rem; font-weight:600; }
+  .med-tag-route { background:rgba(59,130,246,0.15); color:var(--accent); }
+  .med-tag-system { background:rgba(139,92,246,0.15); color:var(--accent2); }
+  .suffix-hl { background:rgba(245,158,11,0.3); color:var(--orange); padding:1px 4px; border-radius:4px; font-weight:700; }
+  .med-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:14px; }
+
+  /* Reverse mode */
+  .reverse-card { background:var(--surface); border-radius:12px; padding:28px; border:1px solid var(--surface2); text-align:center; max-width:600px; margin:0 auto; }
+  .reverse-clue { font-size:1.3rem; font-weight:700; margin-bottom:6px; }
+  .reverse-hint { color:var(--text2); font-size:0.95rem; margin-bottom:20px; }
+  .reverse-options { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+  .reverse-opt { padding:12px; border:2px solid var(--surface2); border-radius:10px; cursor:pointer; font-weight:600; font-size:0.95rem; background:var(--bg); color:var(--text); transition:all 0.2s; }
+  .reverse-opt:hover { border-color:var(--accent); background:rgba(59,130,246,0.08); }
+  .reverse-opt.correct { border-color:var(--green); background:rgba(34,197,94,0.15); color:var(--green); }
+  .reverse-opt.wrong { border-color:var(--red); background:rgba(239,68,68,0.1); color:var(--red); }
+
+  /* Suffix game */
+  .suffix-game { max-width:700px; margin:0 auto; }
+  .suffix-cols { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .suffix-col h3 { text-align:center; margin-bottom:12px; font-size:0.95rem; color:var(--text2); }
+  .suffix-item { padding:12px 16px; border:2px solid var(--surface2); border-radius:10px; margin-bottom:8px; cursor:pointer; font-weight:600; font-size:1rem; text-align:center; transition:all 0.2s; background:var(--surface); }
+  .suffix-item:hover { border-color:var(--accent); }
+  .suffix-item.selected { border-color:var(--accent); background:rgba(59,130,246,0.15); color:var(--accent); }
+  .suffix-item.matched { border-color:var(--green); background:rgba(34,197,94,0.12); color:var(--green); opacity:0.7; pointer-events:none; }
+  .suffix-item.wrong-flash { border-color:var(--red); background:rgba(239,68,68,0.15); color:var(--red); animation:shake 0.4s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+
+  /* Speed rounds */
+  .speed-card { background:var(--surface); border-radius:16px; padding:32px; border:1px solid var(--surface2); text-align:center; max-width:550px; margin:0 auto; position:relative; }
+  .speed-timer { font-size:3rem; font-weight:800; margin-bottom:4px; }
+  .speed-timer.warning { color:var(--orange); }
+  .speed-timer.danger { color:var(--red); animation:pulse 0.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  .speed-bar { height:6px; border-radius:3px; background:var(--surface2); overflow:hidden; margin-bottom:20px; }
+  .speed-bar-fill { height:100%; border-radius:3px; transition:width 0.3s linear; }
+  .speed-input-row { display:flex; gap:8px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
+  .speed-input { padding:10px 16px; border:2px solid var(--surface2); border-radius:10px; background:var(--bg); color:var(--text); font-size:1rem; text-align:center; width:200px; }
+  .speed-input:focus { border-color:var(--accent); outline:none; }
+  .speed-pile { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:16px; }
+  .speed-pile-tag { padding:4px 10px; border-radius:16px; font-size:0.75rem; font-weight:600; }
+  .speed-pile-tag.ok { background:rgba(34,197,94,0.15); color:var(--green); }
+  .speed-pile-tag.review { background:rgba(239,68,68,0.15); color:var(--red); }
+
+  /* UPDATE BANNER */
+  .update-banner { position:fixed; top:0; left:0; right:0; z-index:10000; background:linear-gradient(135deg, var(--accent), var(--accent2)); color:white; text-align:center; padding:10px 16px; font-size:0.9rem; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow:0 2px 12px rgba(0,0,0,0.4); animation:slideDown 0.4s ease; }
+  .update-banner:hover { filter:brightness(1.1); }
+  @keyframes slideDown { from{transform:translateY(-100%)} to{transform:translateY(0)} }
 
   /* Responsive */
   @media (max-width:600px) {
@@ -1020,6 +1081,7 @@ function HomeScreen({ onNav, progress }) {
     {id:'analyze', icon:'\u{1F50D}', title:'Question Analyzer', desc:'Learn to identify key info, spot traps, and pick the right formula.'},
     {id:'dashboard', icon:'\u{1F4CA}', title:'Dashboard', desc:'Track your accuracy by category. See your strengths and weak spots.'},
     {id:'missed', icon:'\u{1F6A8}', title:'Missed Questions' + (missedCount > 0 ? ' (' + missedCount + ')' : ''), desc: missedCount > 0 ? missedCount + ' questions to review. Drill your weak spots until they\'re gone.' : 'All clear! Questions you miss will appear here for review.'},
+    {id:'pharm', icon:'\u{1F48A}', title:'Pharmacology', desc:'28 meds with flashcards, reverse mode, suffix matching game, and timed speed rounds.'},
   ];
   return React.createElement('div', null,
     React.createElement('div', {style:{textAlign:'center', padding:'40px 0 20px'}},
@@ -1814,6 +1876,473 @@ function MissedBank({ progress, setProgress }) {
 }
 
 // ============================
+// PHARMACOLOGY DATA
+// ============================
+const MEDS = [
+  {name:'Spironolactone',suffix:'one',drugClass:'K-Sparing Diuretic',indication:'HF, Edema (saves Potassium)',routes:['PO'],sideEffects:['Hyperkalemia','Gynecomastia'],system:'Cardio'},
+  {name:'Levothyroxine',suffix:'ine',drugClass:'Thyroid Hormone',indication:'Hypothyroidism (T4 replacement)',routes:['PO','IV'],sideEffects:['Tachycardia','Insomnia'],system:'Endocrine'},
+  {name:'Metoprolol',suffix:'olol',drugClass:'Beta-Blocker',indication:'HTN, MI (slows HR)',routes:['PO','IV'],sideEffects:['Bradycardia','Fatigue'],system:'Cardio'},
+  {name:'Furosemide',suffix:'ide',drugClass:'Loop Diuretic',indication:'Edema, HF (dumps fluid)',routes:['PO','IV','IM'],sideEffects:['Hypokalemia','Hypotension'],system:'Cardio'},
+  {name:'Prednisone',suffix:'one',drugClass:'Corticosteroid',indication:'Inflammation, Asthma',routes:['PO'],sideEffects:['Hyperglycemia','Weight gain'],system:'Immune'},
+  {name:'Atorvastatin',suffix:'statin',drugClass:'Statin',indication:'Hyperlipidemia (lowers LDL)',routes:['PO'],sideEffects:['Muscle pain','Liver issues'],system:'Cardio'},
+  {name:'Enalapril',suffix:'pril',drugClass:'ACE Inhibitor',indication:'HTN, Heart Failure',routes:['PO','IV'],sideEffects:['Dry cough','Angioedema'],system:'Cardio',mnemonic:'ACE → Angioedema, Cough, Elevated Potassium'},
+  {name:'Losartan',suffix:'sartan',drugClass:'ARB',indication:'HTN, Diabetic Nephropathy',routes:['PO'],sideEffects:['Hyperkalemia','Hypotension'],system:'Cardio'},
+  {name:'Lorazepam',suffix:'pam',drugClass:'Benzodiazepine',indication:'Anxiety, Seizures',routes:['PO','IV','IM','SL'],sideEffects:['Sedation','Resp. depression'],system:'Neuro'},
+  {name:'Cephalosporin',suffix:'',drugClass:'Antibiotic',indication:'Bacterial Infection',routes:['PO','IV','IM'],sideEffects:['Diarrhea','Rash'],system:'Infection'},
+  {name:'Digoxin',suffix:'',drugClass:'Cardiac Glycoside',indication:'HF, A-fib (strengthens pump)',routes:['PO','IV'],sideEffects:['Bradycardia','Yellow halos'],system:'Cardio'},
+  {name:'Lithium',suffix:'',drugClass:'Mood Stabilizer',indication:'Bipolar Disorder',routes:['PO'],sideEffects:['Tremors','Polyuria (thirst)'],system:'Neuro'},
+  {name:'Potassium',suffix:'',drugClass:'Electrolyte',indication:'Hypokalemia',routes:['PO','IV (Slow!)'],sideEffects:['GI upset','Arrhythmias'],system:'Electrolyte'},
+  {name:'Labetalol',suffix:'olol',drugClass:'Beta-Blocker',indication:'HTN (Alpha/Beta blocker)',routes:['PO','IV'],sideEffects:['Ortho. hypotension','Bradycardia'],system:'Cardio'},
+  {name:'Ferrous Sulfate',suffix:'',drugClass:'Iron Supplement',indication:'Anemia',routes:['PO'],sideEffects:['Constipation','Black stools'],system:'Heme'},
+  {name:'Zolpidem',suffix:'',drugClass:'Sedative/Hypnotic',indication:'Insomnia',routes:['PO'],sideEffects:['Dizziness','Sleep-walking'],system:'Neuro'},
+  {name:'Enoxaparin',suffix:'parin',drugClass:'Anticoagulant',indication:'DVT/PE Prevention',routes:['SubQ'],sideEffects:['Bleeding','Site bruising'],system:'Heme'},
+  {name:'Thiazide',suffix:'azide',drugClass:'Diuretic',indication:'HTN, Edema',routes:['PO'],sideEffects:['Hypokalemia','Hyponatremia'],system:'Cardio'},
+  {name:'Nitroglycerin',suffix:'',drugClass:'Vasodilator',indication:'Angina (opens coronary arteries)',routes:['SL','IV','Topical'],sideEffects:['Headache','Hypotension'],system:'Cardio'},
+  {name:'Heparin',suffix:'parin',drugClass:'Anticoagulant',indication:'DVT/PE Treatment',routes:['IV','SubQ'],sideEffects:['Bleeding','HIT (low platelets)'],system:'Heme'},
+  {name:'Warfarin',suffix:'',drugClass:'Anticoagulant',indication:'A-fib, Valve prophylaxis',routes:['PO'],sideEffects:['Bleeding','Ecchymosis'],system:'Heme'},
+  {name:'Aspirin',suffix:'',drugClass:'Antiplatelet',indication:'MI/Stroke prevention',routes:['PO'],sideEffects:['GI bleed','Tinnitus'],system:'Heme'},
+  {name:'Diltiazem',suffix:'',drugClass:'CCB',indication:'HTN, A-fib (slows conduction)',routes:['PO','IV'],sideEffects:['Peripheral edema','Bradycardia'],system:'Cardio'},
+  {name:'Methylprednisolone',suffix:'one',drugClass:'Corticosteroid',indication:'Severe Inflammation',routes:['IV','IM'],sideEffects:['Hyperglycemia','Infection risk'],system:'Immune'},
+  {name:'Tamsulosin',suffix:'',drugClass:'Alpha-1 Blocker',indication:'BPH (increases urine flow)',routes:['PO'],sideEffects:['Dizziness','Headache'],system:'Renal/GU'},
+  {name:'Isosorbide',suffix:'',drugClass:'Vasodilator',indication:'Chronic Angina',routes:['PO'],sideEffects:['Headache','Flushing'],system:'Cardio'},
+  {name:'Metformin',suffix:'',drugClass:'Biguanide',indication:'Type 2 Diabetes',routes:['PO'],sideEffects:['Diarrhea','Lactic Acidosis'],system:'Endocrine'},
+  {name:'Kayexalate',suffix:'',drugClass:'K-Binder',indication:'Hyperkalemia (removes K)',routes:['PO','Rectal'],sideEffects:['Constipation','Gastric irritation'],system:'Electrolyte'},
+];
+
+const MED_SYSTEMS = ['All', 'Cardio', 'Neuro', 'Endocrine', 'Heme', 'Immune', 'Infection', 'Renal/GU', 'Electrolyte'];
+
+const SUFFIX_MAP = [
+  {suffix:'-pril', drugClass:'ACE Inhibitor', example:'Enalapril'},
+  {suffix:'-sartan', drugClass:'ARB', example:'Losartan'},
+  {suffix:'-olol', drugClass:'Beta-Blocker', example:'Metoprolol'},
+  {suffix:'-statin', drugClass:'Statin', example:'Atorvastatin'},
+  {suffix:'-pam/-lam', drugClass:'Benzodiazepine', example:'Lorazepam'},
+  {suffix:'-parin', drugClass:'Anticoagulant', example:'Heparin'},
+  {suffix:'-azide', drugClass:'Thiazide Diuretic', example:'Hydrochlorothiazide'},
+  {suffix:'-one (steroids)', drugClass:'Corticosteroid', example:'Prednisone'},
+];
+
+// Highlight suffix in drug name
+function highlightSuffix(name) {
+  const suffixes = ['pril','sartan','olol','statin','pam','lam','parin','azide'];
+  for (const suf of suffixes) {
+    const idx = name.toLowerCase().lastIndexOf(suf);
+    if (idx !== -1) {
+      return React.createElement('span', null,
+        name.slice(0, idx),
+        React.createElement('span', {className:'suffix-hl'}, name.slice(idx)),
+      );
+    }
+  }
+  return name;
+}
+
+// Fisher-Yates shuffle
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ============================
+// PHARM: FLASHCARDS
+// ============================
+function PharmCards() {
+  const [filter, setFilter] = useState('All');
+  const [flipped, setFlipped] = useState({});
+  const filtered = MEDS.filter(m => filter === 'All' || m.system === filter);
+
+  return React.createElement('div', null,
+    React.createElement('div', {className:'filter-row'},
+      MED_SYSTEMS.map(s => React.createElement('button', {key:s, className:'filter-btn'+(filter===s?' active':''), onClick:()=>setFilter(s)}, s))
+    ),
+    React.createElement('p', {style:{color:'var(--text2)', fontSize:'0.85rem', marginBottom:14}},
+      'Showing ', filtered.length, ' meds. Click to flip. ',
+      React.createElement('span', {className:'suffix-hl'}, 'Orange'), ' = suffix that tells you the drug class.'
+    ),
+    React.createElement('div', {className:'med-grid'},
+      filtered.map((m, i) => {
+        const isFlipped = flipped[i];
+        return React.createElement('div', {key:i, className:'med-card'+(isFlipped?' flipped':''), onClick:()=>setFlipped(p=>({...p,[i]:!p[i]}))},
+          !isFlipped ? React.createElement(React.Fragment, null,
+            React.createElement('div', {className:'med-card-name'}, highlightSuffix(m.name)),
+            React.createElement('div', {className:'med-card-class'}, m.drugClass),
+            React.createElement('div', {style:{color:'var(--text3)', fontSize:'0.8rem', marginTop:8}}, 'Click to reveal details')
+          ) : React.createElement(React.Fragment, null,
+            React.createElement('div', {className:'med-card-name'}, highlightSuffix(m.name)),
+            React.createElement('div', {className:'med-card-class'}, m.drugClass),
+            React.createElement('div', {style:{margin:'8px 0', fontWeight:600}}, m.indication),
+            React.createElement('div', {style:{color:'var(--text2)', fontSize:'0.9rem'}},
+              React.createElement('strong', null, 'Side Effects: '), m.sideEffects.join(', ')
+            ),
+            React.createElement('div', {className:'med-card-row'},
+              m.routes.map(r => React.createElement('span', {key:r, className:'med-tag med-tag-route'}, r)),
+              React.createElement('span', {className:'med-tag med-tag-system'}, m.system)
+            ),
+            m.mnemonic && React.createElement('div', {style:{marginTop:10, padding:'8px 12px', background:'rgba(245,158,11,0.1)', borderRadius:8, fontSize:'0.85rem', color:'var(--orange)'}},
+              '\uD83D\uDCA1 ', m.mnemonic
+            )
+          )
+        );
+      })
+    )
+  );
+}
+
+// ============================
+// PHARM: REVERSE MODE
+// ============================
+function PharmReverse() {
+  const [deck, setDeck] = useState(() => shuffle(MEDS));
+  const [idx, setIdx] = useState(0);
+  const [options, setOptions] = useState([]);
+  const [chosen, setChosen] = useState(null);
+  const [score, setScore] = useState({correct:0, total:0});
+
+  const setupQ = useCallback((index, d) => {
+    const med = d[index];
+    const wrong = shuffle(d.filter(m => m.name !== med.name)).slice(0, 3);
+    setOptions(shuffle([med, ...wrong]));
+    setChosen(null);
+  }, []);
+
+  useEffect(() => { setupQ(0, deck); }, []);
+
+  const pick = (m) => {
+    if (chosen !== null) return;
+    setChosen(m.name);
+    setScore(s => ({correct: s.correct + (m.name === deck[idx].name ? 1 : 0), total: s.total + 1}));
+  };
+
+  const next = () => {
+    const ni = idx + 1;
+    if (ni >= deck.length) {
+      const nd = shuffle(MEDS);
+      setDeck(nd);
+      setIdx(0);
+      setupQ(0, nd);
+    } else {
+      setIdx(ni);
+      setupQ(ni, deck);
+    }
+  };
+
+  const med = deck[idx];
+  if (!med) return null;
+
+  return React.createElement('div', null,
+    React.createElement('div', {style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}},
+      React.createElement('p', {style:{color:'var(--text2)', fontSize:'0.9rem'}}, 'Card ', idx+1, ' / ', deck.length),
+      React.createElement('div', {style:{fontWeight:700, color: score.total > 0 && score.correct/score.total >= 0.7 ? 'var(--green)' : 'var(--orange)'}},
+        score.correct, '/', score.total, ' correct')
+    ),
+    React.createElement('div', {className:'reverse-card'},
+      React.createElement('div', {style:{fontSize:'0.85rem', color:'var(--accent2)', fontWeight:600, marginBottom:8}}, 'What medication is this?'),
+      React.createElement('div', {className:'reverse-clue'}, med.indication),
+      React.createElement('div', {className:'reverse-hint'},
+        'Class: ', med.drugClass, ' \u2022 Routes: ', med.routes.join(', ')
+      ),
+      React.createElement('div', {style:{color:'var(--text3)', fontSize:'0.85rem', marginBottom:4}},
+        'Side Effects: ', med.sideEffects.join(', ')
+      ),
+      React.createElement('div', {className:'reverse-options'},
+        options.map(o => {
+          let cls = 'reverse-opt';
+          if (chosen) {
+            if (o.name === med.name) cls += ' correct';
+            else if (o.name === chosen) cls += ' wrong';
+          }
+          return React.createElement('div', {key:o.name, className:cls, onClick:()=>pick(o)}, o.name);
+        })
+      ),
+      chosen && React.createElement('div', {style:{marginTop:16}},
+        chosen === med.name ?
+          React.createElement('div', {style:{color:'var(--green)', fontWeight:700, fontSize:'1.1rem'}}, '\u2705 Correct!') :
+          React.createElement('div', {style:{color:'var(--red)', fontWeight:700, fontSize:'1.1rem'}}, '\u274C The answer is ', med.name),
+        React.createElement('button', {className:'btn btn-primary', style:{marginTop:12}, onClick:next}, 'Next \u2192')
+      )
+    )
+  );
+}
+
+// ============================
+// PHARM: SUFFIX MATCHING GAME
+// ============================
+function PharmSuffixGame() {
+  const [pairs] = useState(() => shuffle(SUFFIX_MAP));
+  const [classes] = useState(() => shuffle(SUFFIX_MAP.map(s => ({suffix:s.suffix, drugClass:s.drugClass}))));
+  const [selectedSuffix, setSelectedSuffix] = useState(null);
+  const [matched, setMatched] = useState({});
+  const [wrongFlash, setWrongFlash] = useState(null);
+  const [score, setScore] = useState(0);
+  const [attempts, setAttempts] = useState(0);
+
+  const allMatched = Object.keys(matched).length === SUFFIX_MAP.length;
+
+  const pickSuffix = (suf) => {
+    if (matched[suf]) return;
+    setSelectedSuffix(suf);
+    setWrongFlash(null);
+  };
+
+  const pickClass = (cls) => {
+    if (!selectedSuffix || Object.values(matched).includes(cls)) return;
+    setAttempts(a => a + 1);
+    const correct = SUFFIX_MAP.find(s => s.suffix === selectedSuffix);
+    if (correct && correct.drugClass === cls) {
+      setMatched(p => ({...p, [selectedSuffix]: cls}));
+      setScore(s => s + 1);
+      setSelectedSuffix(null);
+    } else {
+      setWrongFlash(cls);
+      setTimeout(() => setWrongFlash(null), 600);
+    }
+  };
+
+  const reset = () => {
+    setMatched({});
+    setSelectedSuffix(null);
+    setScore(0);
+    setAttempts(0);
+    setWrongFlash(null);
+  };
+
+  return React.createElement('div', {className:'suffix-game'},
+    React.createElement('p', {style:{color:'var(--text2)', fontSize:'0.9rem', marginBottom:16, textAlign:'center'}},
+      'Match each suffix to its drug class. Click a suffix, then click the matching class.'
+    ),
+    React.createElement('div', {style:{textAlign:'center', marginBottom:16, fontWeight:700}},
+      score, '/', SUFFIX_MAP.length, ' matched',
+      attempts > 0 && React.createElement('span', {style:{color:'var(--text3)', fontWeight:400, marginLeft:12}}, '(', attempts, ' attempts)')
+    ),
+    allMatched ? React.createElement('div', {style:{textAlign:'center', padding:40}},
+      React.createElement('div', {style:{fontSize:'2rem', marginBottom:12}}, '\uD83C\uDF89'),
+      React.createElement('div', {style:{fontSize:'1.3rem', fontWeight:700, color:'var(--green)', marginBottom:8}}, 'All Matched!'),
+      React.createElement('div', {style:{color:'var(--text2)', marginBottom:16}}, 'You did it in ', attempts, ' attempts.'),
+      React.createElement('button', {className:'btn btn-primary', onClick:reset}, 'Play Again')
+    ) :
+    React.createElement('div', {className:'suffix-cols'},
+      React.createElement('div', null,
+        React.createElement('h3', null, 'Suffixes'),
+        pairs.map(p => {
+          let cls = 'suffix-item';
+          if (matched[p.suffix]) cls += ' matched';
+          else if (selectedSuffix === p.suffix) cls += ' selected';
+          return React.createElement('div', {key:p.suffix, className:cls, onClick:()=>pickSuffix(p.suffix)},
+            p.suffix, matched[p.suffix] ? ' \u2713' : ''
+          );
+        })
+      ),
+      React.createElement('div', null,
+        React.createElement('h3', null, 'Drug Classes'),
+        classes.map(c => {
+          let cls = 'suffix-item';
+          if (Object.values(matched).includes(c.drugClass)) cls += ' matched';
+          else if (wrongFlash === c.drugClass) cls += ' wrong-flash';
+          return React.createElement('div', {key:c.drugClass, className:cls, onClick:()=>pickClass(c.drugClass)},
+            c.drugClass, Object.values(matched).includes(c.drugClass) ? ' \u2713' : ''
+          );
+        })
+      )
+    )
+  );
+}
+
+// ============================
+// PHARM: MED-PASS SPEED ROUNDS
+// ============================
+function PharmSpeed() {
+  const [deck, setDeck] = useState(() => shuffle(MEDS));
+  const [idx, setIdx] = useState(0);
+  const [phase, setPhase] = useState('ready'); // ready, running, reveal, done
+  const [timer, setTimer] = useState(10);
+  const [answer, setAnswer] = useState('');
+  const [field, setField] = useState('name'); // what to guess: name, class, indication
+  const [results, setResults] = useState([]);
+  const timerRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const startRound = () => {
+    const nd = shuffle(MEDS);
+    setDeck(nd);
+    setIdx(0);
+    setResults([]);
+    setPhase('running');
+    setTimer(10);
+    setAnswer('');
+    setTimeout(() => inputRef.current && inputRef.current.focus(), 100);
+  };
+
+  useEffect(() => {
+    if (phase !== 'running') { clearInterval(timerRef.current); return; }
+    timerRef.current = setInterval(() => {
+      setTimer(t => {
+        if (t <= 1) {
+          clearInterval(timerRef.current);
+          // time's up — mark as missed
+          setResults(r => [...r, {med:deck[idx], correct:false}]);
+          setPhase('reveal');
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timerRef.current);
+  }, [phase, idx]);
+
+  const submit = () => {
+    if (!answer.trim()) return;
+    clearInterval(timerRef.current);
+    const med = deck[idx];
+    let target = field === 'name' ? med.name : field === 'class' ? med.drugClass : med.indication;
+    const isCorrect = answer.trim().toLowerCase() === target.toLowerCase() ||
+      target.toLowerCase().includes(answer.trim().toLowerCase());
+    setResults(r => [...r, {med, correct:isCorrect}]);
+    setPhase('reveal');
+  };
+
+  const nextCard = () => {
+    const ni = idx + 1;
+    if (ni >= deck.length) { setPhase('done'); return; }
+    setIdx(ni);
+    setPhase('running');
+    setTimer(10);
+    setAnswer('');
+    setTimeout(() => inputRef.current && inputRef.current.focus(), 100);
+  };
+
+  const correctCount = results.filter(r => r.correct).length;
+  const reviewPile = results.filter(r => !r.correct);
+
+  if (phase === 'done') {
+    return React.createElement('div', {style:{textAlign:'center', padding:20}},
+      React.createElement('h2', {style:{marginBottom:12}}, '\uD83C\uDFC1 Round Complete!'),
+      React.createElement('div', {style:{fontSize:'2rem', fontWeight:800, color: correctCount/results.length >= 0.7 ? 'var(--green)' : 'var(--orange)', marginBottom:8}},
+        correctCount, ' / ', results.length
+      ),
+      React.createElement('p', {style:{color:'var(--text2)', marginBottom:16}},
+        Math.round(correctCount/results.length*100), '% accuracy'
+      ),
+      reviewPile.length > 0 && React.createElement('div', {className:'card', style:{textAlign:'left', marginBottom:16}},
+        React.createElement('h3', {style:{color:'var(--red)', marginBottom:10}}, '\uD83D\uDCCB Must Review Pile (', reviewPile.length, ')'),
+        reviewPile.map((r, i) => React.createElement('div', {key:i, style:{padding:'8px 0', borderBottom:'1px solid var(--surface2)'}},
+          React.createElement('strong', null, r.med.name), ' — ', r.med.drugClass,
+          React.createElement('div', {style:{color:'var(--text2)', fontSize:'0.85rem'}}, r.med.indication)
+        ))
+      ),
+      React.createElement('button', {className:'btn btn-primary', onClick:startRound}, 'Go Again')
+    );
+  }
+
+  if (phase === 'ready') {
+    return React.createElement('div', {style:{textAlign:'center', padding:40}},
+      React.createElement('div', {style:{fontSize:'3rem', marginBottom:12}}, '\u26A1'),
+      React.createElement('h2', {style:{marginBottom:8}}, 'Med-Pass Speed Round'),
+      React.createElement('p', {style:{color:'var(--text2)', marginBottom:20}},
+        '10 seconds per card. Identify the medication as fast as you can. Missed cards go into a Must Review pile.'
+      ),
+      React.createElement('div', {style:{marginBottom:20}},
+        React.createElement('label', {style:{color:'var(--text2)', fontSize:'0.9rem', display:'block', marginBottom:8}}, 'What do you want to guess?'),
+        React.createElement('div', {style:{display:'flex', gap:8, justifyContent:'center'}},
+          ['name','class','indication'].map(f =>
+            React.createElement('button', {key:f, className:'btn '+(field===f?'btn-primary':'btn-outline'), onClick:()=>setField(f)},
+              f === 'name' ? 'Drug Name' : f === 'class' ? 'Drug Class' : 'Indication'
+            )
+          )
+        )
+      ),
+      React.createElement('button', {className:'btn btn-primary', style:{fontSize:'1.1rem', padding:'14px 36px'}, onClick:startRound}, 'Start \u2192')
+    );
+  }
+
+  const med = deck[idx];
+  const pct = timer / 10 * 100;
+  const barColor = timer > 5 ? 'var(--green)' : timer > 3 ? 'var(--orange)' : 'var(--red)';
+
+  return React.createElement('div', null,
+    React.createElement('div', {style:{display:'flex', justifyContent:'space-between', marginBottom:12}},
+      React.createElement('span', {style:{color:'var(--text2)'}}, 'Card ', idx+1, ' / ', deck.length),
+      React.createElement('span', {style:{fontWeight:700}}, correctCount, ' correct')
+    ),
+    React.createElement('div', {className:'speed-card'},
+      React.createElement('div', {className:'speed-timer'+(timer<=3?' danger':timer<=5?' warning':'')}, timer, 's'),
+      React.createElement('div', {className:'speed-bar'},
+        React.createElement('div', {className:'speed-bar-fill', style:{width:pct+'%', background:barColor}})
+      ),
+      phase === 'running' && React.createElement(React.Fragment, null,
+        React.createElement('div', {style:{marginBottom:16}},
+          field === 'name' && React.createElement(React.Fragment, null,
+            React.createElement('div', {style:{fontSize:'0.85rem', color:'var(--accent2)', fontWeight:600, marginBottom:4}}, 'Name this medication:'),
+            React.createElement('div', {style:{fontSize:'1.2rem', fontWeight:700, marginBottom:4}}, med.indication),
+            React.createElement('div', {style:{color:'var(--text2)', fontSize:'0.9rem'}}, 'Class: ', med.drugClass, ' \u2022 Routes: ', med.routes.join(', '))
+          ),
+          field === 'class' && React.createElement(React.Fragment, null,
+            React.createElement('div', {style:{fontSize:'0.85rem', color:'var(--accent2)', fontWeight:600, marginBottom:4}}, 'What class?'),
+            React.createElement('div', {style:{fontSize:'1.4rem', fontWeight:700}}, med.name)
+          ),
+          field === 'indication' && React.createElement(React.Fragment, null,
+            React.createElement('div', {style:{fontSize:'0.85rem', color:'var(--accent2)', fontWeight:600, marginBottom:4}}, 'What is it used for?'),
+            React.createElement('div', {style:{fontSize:'1.4rem', fontWeight:700}}, med.name),
+            React.createElement('div', {style:{color:'var(--text2)', fontSize:'0.9rem'}}, med.drugClass)
+          )
+        ),
+        React.createElement('div', {className:'speed-input-row'},
+          React.createElement('input', {ref:inputRef, className:'speed-input', placeholder:'Type your answer...', value:answer,
+            onChange:e=>setAnswer(e.target.value),
+            onKeyDown:e=>{if(e.key==='Enter')submit();}
+          }),
+          React.createElement('button', {className:'btn btn-primary', onClick:submit}, 'Submit')
+        )
+      ),
+      phase === 'reveal' && React.createElement('div', {style:{padding:'10px 0'}},
+        results[results.length-1] && results[results.length-1].correct ?
+          React.createElement('div', {style:{color:'var(--green)', fontSize:'1.3rem', fontWeight:700, marginBottom:8}}, '\u2705 Got it!') :
+          React.createElement('div', null,
+            React.createElement('div', {style:{color:'var(--red)', fontSize:'1.1rem', fontWeight:700, marginBottom:4}}, timer === 0 ? '\u23F0 Time\'s Up!' : '\u274C Not quite'),
+            React.createElement('div', {style:{fontSize:'1rem', color:'var(--text)', marginTop:4}},
+              React.createElement('strong', null, med.name), ' — ', med.drugClass,
+              React.createElement('div', {style:{color:'var(--text2)', fontSize:'0.9rem', marginTop:4}}, med.indication)
+            )
+          ),
+        React.createElement('button', {className:'btn btn-primary', style:{marginTop:14}, onClick:nextCard},
+          idx < deck.length - 1 ? 'Next Card \u2192' : 'See Results'
+        )
+      )
+    ),
+    results.length > 0 && React.createElement('div', {className:'speed-pile', style:{marginTop:16}},
+      results.map((r, i) => React.createElement('span', {key:i, className:'speed-pile-tag '+(r.correct?'ok':'review')}, r.med.name))
+    )
+  );
+}
+
+// ============================
+// PHARM HUB (Main container)
+// ============================
+function PharmHub() {
+  const [mode, setMode] = useState('cards');
+  const modes = [
+    {id:'cards', label:'\uD83D\uDC8A Flashcards'},
+    {id:'reverse', label:'\uD83D\uDD04 Reverse Mode'},
+    {id:'suffix', label:'\uD83E\uDDE9 Suffix Game'},
+    {id:'speed', label:'\u26A1 Speed Rounds'},
+  ];
+  return React.createElement('div', null,
+    React.createElement('h2', {style:{marginBottom:4}}, 'Pharmacology'),
+    React.createElement('p', {style:{color:'var(--text2)', fontSize:'0.9rem', marginBottom:14}}, '28 medications. Multiple study modes. Master them all.'),
+    React.createElement('div', {className:'pharm-subnav'},
+      modes.map(m => React.createElement('button', {key:m.id, className:mode===m.id?'active':'', onClick:()=>setMode(m.id)}, m.label))
+    ),
+    mode === 'cards' && React.createElement(PharmCards),
+    mode === 'reverse' && React.createElement(PharmReverse),
+    mode === 'suffix' && React.createElement(PharmSuffixGame),
+    mode === 'speed' && React.createElement(PharmSpeed)
+  );
+}
+
+// ============================
 // MAIN APP
 // ============================
 function App() {
@@ -1830,6 +2359,7 @@ function App() {
       case 'analyze': return React.createElement(QuestionAnalyzer);
       case 'dashboard': return React.createElement(Dashboard, {progress});
       case 'missed': return React.createElement(MissedBank, {progress, setProgress});
+      case 'pharm': return React.createElement(PharmHub);
       default: return React.createElement(HomeScreen, {onNav: setPage, progress});
     }
   };
@@ -1842,6 +2372,7 @@ function App() {
         React.createElement('button', {className:'nav-btn'+(page==='guided'?' active':''), onClick:()=>setPage('guided')}, 'Guided'),
         React.createElement('button', {className:'nav-btn'+(page==='test'?' active':''), onClick:()=>setPage('test')}, 'Test'),
         React.createElement('button', {className:'nav-btn'+(page==='analyze'?' active':''), onClick:()=>setPage('analyze')}, 'Analyzer'),
+        React.createElement('button', {className:'nav-btn'+(page==='pharm'?' active':''), style:page==='pharm'?{background:'var(--accent2)'}:{}, onClick:()=>setPage('pharm')}, '\uD83D\uDC8A Pharm'),
         React.createElement('button', {className:'nav-btn'+(page==='dashboard'?' active':''), onClick:()=>setPage('dashboard')}, 'Stats'),
         React.createElement('button', {className:'nav-btn'+(page==='missed'?' active':''), onClick:()=>setPage('missed')},
           'Missed', (progress.missedQuestions || []).length > 0 ? ' (' + progress.missedQuestions.length + ')' : ''
@@ -1854,6 +2385,38 @@ function App() {
 }
 
 ReactDOM.render(React.createElement(App), document.getElementById('root'));
+</script>
+
+<!-- Auto-update checker -->
+<script>
+(function() {
+  var currentVersion = document.querySelector('meta[name="app-version"]').content;
+  var checkInterval = 30000; // check every 30 seconds
+
+  function checkForUpdate() {
+    fetch(window.location.href + '?_nocache=' + Date.now(), { cache: 'no-store' })
+      .then(function(r) { return r.text(); })
+      .then(function(html) {
+        var match = html.match(/name="app-version"\s+content="(\d+)"/);
+        if (match && match[1] !== currentVersion) {
+          showUpdateBanner();
+        }
+      })
+      .catch(function() { /* silent fail */ });
+  }
+
+  function showUpdateBanner() {
+    if (document.getElementById('update-banner')) return;
+    var banner = document.createElement('div');
+    banner.id = 'update-banner';
+    banner.className = 'update-banner';
+    banner.innerHTML = '\u26A1 A new version is available! Click here to refresh.';
+    banner.onclick = function() { window.location.reload(true); };
+    document.body.prepend(banner);
+  }
+
+  setInterval(checkForUpdate, checkInterval);
+})();
 </script>
 </body>
 </html>
