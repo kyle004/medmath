@@ -1422,6 +1422,7 @@ function GuidedPractice({ progress, setProgress }) {
   };
 
   const completedIds = progress.completedQuestions || [];
+  const stats = progress.questionStats || {};
   const questionContent = hlOn
     ? renderHighlightedText(q.text, q.keyPhrases, q.trapPhrases, q.convertPhrases)
     : q.text;
