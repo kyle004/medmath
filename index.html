@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MedMaster</title>
-<meta name="app-version" content="1">
+<meta name="app-version" content="2">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
@@ -2061,34 +2061,260 @@ function MissedBank({ progress, setProgress }) {
 // PHARMACOLOGY DATA
 // ============================
 const MEDS = [
-  {name:'Spironolactone',suffix:'one',drugClass:'K-Sparing Diuretic',indication:'HF, Edema (saves Potassium)',routes:['PO'],sideEffects:['Hyperkalemia','Gynecomastia'],system:'Cardio'},
-  {name:'Levothyroxine',suffix:'ine',drugClass:'Thyroid Hormone',indication:'Hypothyroidism (T4 replacement)',routes:['PO','IV'],sideEffects:['Tachycardia','Insomnia'],system:'Endocrine'},
-  {name:'Metoprolol',suffix:'olol',drugClass:'Beta-Blocker',indication:'HTN, MI (slows HR)',routes:['PO','IV'],sideEffects:['Bradycardia','Fatigue'],system:'Cardio'},
-  {name:'Furosemide',suffix:'ide',drugClass:'Loop Diuretic',indication:'Edema, HF (dumps fluid)',routes:['PO','IV','IM'],sideEffects:['Hypokalemia','Hypotension'],system:'Cardio'},
-  {name:'Prednisone',suffix:'one',drugClass:'Corticosteroid',indication:'Inflammation, Asthma',routes:['PO'],sideEffects:['Hyperglycemia','Weight gain'],system:'Immune'},
-  {name:'Atorvastatin',suffix:'statin',drugClass:'Statin',indication:'Hyperlipidemia (lowers LDL)',routes:['PO'],sideEffects:['Muscle pain','Liver issues'],system:'Cardio'},
-  {name:'Enalapril',suffix:'pril',drugClass:'ACE Inhibitor',indication:'HTN, Heart Failure',routes:['PO','IV'],sideEffects:['Dry cough','Angioedema'],system:'Cardio',mnemonic:'ACE → Angioedema, Cough, Elevated Potassium'},
-  {name:'Losartan',suffix:'sartan',drugClass:'ARB',indication:'HTN, Diabetic Nephropathy',routes:['PO'],sideEffects:['Hyperkalemia','Hypotension'],system:'Cardio'},
-  {name:'Lorazepam',suffix:'pam',drugClass:'Benzodiazepine',indication:'Anxiety, Seizures',routes:['PO','IV','IM','SL'],sideEffects:['Sedation','Resp. depression'],system:'Neuro'},
-  {name:'Cephalosporin',suffix:'',drugClass:'Antibiotic',indication:'Bacterial Infection',routes:['PO','IV','IM'],sideEffects:['Diarrhea','Rash'],system:'Infection'},
-  {name:'Digoxin',suffix:'',drugClass:'Cardiac Glycoside',indication:'HF, A-fib (strengthens pump)',routes:['PO','IV'],sideEffects:['Bradycardia','Yellow halos'],system:'Cardio'},
-  {name:'Lithium',suffix:'',drugClass:'Mood Stabilizer',indication:'Bipolar Disorder',routes:['PO'],sideEffects:['Tremors','Polyuria (thirst)'],system:'Neuro'},
-  {name:'Potassium',suffix:'',drugClass:'Electrolyte',indication:'Hypokalemia',routes:['PO','IV (Slow!)'],sideEffects:['GI upset','Arrhythmias'],system:'Electrolyte'},
-  {name:'Labetalol',suffix:'olol',drugClass:'Beta-Blocker',indication:'HTN (Alpha/Beta blocker)',routes:['PO','IV'],sideEffects:['Ortho. hypotension','Bradycardia'],system:'Cardio'},
-  {name:'Ferrous Sulfate',suffix:'',drugClass:'Iron Supplement',indication:'Anemia',routes:['PO'],sideEffects:['Constipation','Black stools'],system:'Heme'},
-  {name:'Zolpidem',suffix:'',drugClass:'Sedative/Hypnotic',indication:'Insomnia',routes:['PO'],sideEffects:['Dizziness','Sleep-walking'],system:'Neuro'},
-  {name:'Enoxaparin',suffix:'parin',drugClass:'Anticoagulant',indication:'DVT/PE Prevention',routes:['SubQ'],sideEffects:['Bleeding','Site bruising'],system:'Heme'},
-  {name:'Thiazide',suffix:'azide',drugClass:'Diuretic',indication:'HTN, Edema',routes:['PO'],sideEffects:['Hypokalemia','Hyponatremia'],system:'Cardio'},
-  {name:'Nitroglycerin',suffix:'',drugClass:'Vasodilator',indication:'Angina (opens coronary arteries)',routes:['SL','IV','Topical'],sideEffects:['Headache','Hypotension'],system:'Cardio'},
-  {name:'Heparin',suffix:'parin',drugClass:'Anticoagulant',indication:'DVT/PE Treatment',routes:['IV','SubQ'],sideEffects:['Bleeding','HIT (low platelets)'],system:'Heme'},
-  {name:'Warfarin',suffix:'',drugClass:'Anticoagulant',indication:'A-fib, Valve prophylaxis',routes:['PO'],sideEffects:['Bleeding','Ecchymosis'],system:'Heme'},
-  {name:'Aspirin',suffix:'',drugClass:'Antiplatelet',indication:'MI/Stroke prevention',routes:['PO'],sideEffects:['GI bleed','Tinnitus'],system:'Heme'},
-  {name:'Diltiazem',suffix:'',drugClass:'CCB',indication:'HTN, A-fib (slows conduction)',routes:['PO','IV'],sideEffects:['Peripheral edema','Bradycardia'],system:'Cardio'},
-  {name:'Methylprednisolone',suffix:'one',drugClass:'Corticosteroid',indication:'Severe Inflammation',routes:['IV','IM'],sideEffects:['Hyperglycemia','Infection risk'],system:'Immune'},
-  {name:'Tamsulosin',suffix:'',drugClass:'Alpha-1 Blocker',indication:'BPH (increases urine flow)',routes:['PO'],sideEffects:['Dizziness','Headache'],system:'Renal/GU'},
-  {name:'Isosorbide',suffix:'',drugClass:'Vasodilator',indication:'Chronic Angina',routes:['PO'],sideEffects:['Headache','Flushing'],system:'Cardio'},
-  {name:'Metformin',suffix:'',drugClass:'Biguanide',indication:'Type 2 Diabetes',routes:['PO'],sideEffects:['Diarrhea','Lactic Acidosis'],system:'Endocrine'},
-  {name:'Kayexalate',suffix:'',drugClass:'K-Binder',indication:'Hyperkalemia (removes K)',routes:['PO','Rectal'],sideEffects:['Constipation','Gastric irritation'],system:'Electrolyte'},
+  {name:'Spironolactone',suffix:'one',drugClass:'K-Sparing Diuretic',
+    indication:'HF, Edema (saves Potassium)',
+    keyIndications:['Heart failure','Edema','Ascites (liver disease)'],
+    routes:['PO'],safeRoutes:['PO'],
+    sideEffects:['Hyperkalemia','Gynecomastia'],
+    criticalAdverse:['Hyperkalemia (can cause fatal arrhythmias)','Gynecomastia in males'],
+    monitor:'K+ levels, renal function, BP',
+    nursing:'Do NOT give with other K-sparing drugs or K+ supplements. Hold if K+ > 5.0.',
+    doseRange:'25-200 mg/day PO', system:'Cardio'},
+  {name:'Levothyroxine',suffix:'ine',drugClass:'Thyroid Hormone',
+    indication:'Hypothyroidism (T4 replacement)',
+    keyIndications:['Hypothyroidism','Myxedema coma (IV)','TSH suppression post-thyroidectomy'],
+    routes:['PO','IV'],safeRoutes:['PO','IV'],
+    sideEffects:['Tachycardia','Insomnia'],
+    criticalAdverse:['Tachycardia/palpitations (overdose sign)','Angina in cardiac patients','Signs of hyperthyroidism'],
+    monitor:'TSH levels (q6-8 weeks initially), HR, weight',
+    nursing:'Give on empty stomach 30-60 min before breakfast. Separate from calcium/iron by 4 hrs.',
+    doseRange:'25-200 mcg/day PO', system:'Endocrine'},
+  {name:'Metoprolol',suffix:'olol',drugClass:'Beta-Blocker',
+    indication:'HTN, MI (slows HR)',
+    keyIndications:['Hypertension','Post-MI protection','Heart failure (stable)','Rate control in A-fib'],
+    routes:['PO','IV'],safeRoutes:['PO','IV'],
+    sideEffects:['Bradycardia','Fatigue'],
+    criticalAdverse:['Bradycardia (hold if HR < 60)','Hypotension','Bronchospasm (avoid in asthma)','Masks hypoglycemia signs in diabetics'],
+    monitor:'HR (hold if < 60), BP, blood glucose in diabetics',
+    nursing:'Do NOT stop abruptly — taper off. Check HR before each dose. Teach patient to rise slowly.',
+    doseRange:'25-200 mg PO BID; 5 mg IV', system:'Cardio',
+    mnemonic:'Beta blockers: Bradycardia, Bronchospasm, BP drop'},
+  {name:'Furosemide',suffix:'ide',drugClass:'Loop Diuretic',
+    indication:'Edema, HF (dumps fluid)',
+    keyIndications:['Pulmonary edema','Heart failure','Acute kidney injury','Severe edema'],
+    routes:['PO','IV','IM'],safeRoutes:['PO','IV','IM'],
+    sideEffects:['Hypokalemia','Hypotension'],
+    criticalAdverse:['Hypokalemia (arrhythmias)','Ototoxicity (esp. with aminoglycosides)','Dehydration/hypotension','Hyponatremia'],
+    monitor:'K+, Na+, BUN/Cr, daily weights, I&O, BP',
+    nursing:'Give in AM to avoid nocturia. Monitor K+ closely — may need K+ supplement. IV push max 20 mg/min.',
+    doseRange:'20-80 mg PO/IV; max 600 mg/day', system:'Cardio'},
+  {name:'Prednisone',suffix:'one',drugClass:'Corticosteroid',
+    indication:'Inflammation, Asthma',
+    keyIndications:['Asthma exacerbation','Autoimmune disorders','Severe allergic reactions','COPD flare'],
+    routes:['PO'],safeRoutes:['PO'],
+    sideEffects:['Hyperglycemia','Weight gain'],
+    criticalAdverse:['Hyperglycemia (steroid-induced diabetes)','Immunosuppression/infection risk','Adrenal suppression (do NOT stop abruptly)','GI bleed','Osteoporosis (long-term)'],
+    monitor:'Blood glucose, signs of infection, mood changes, weight',
+    nursing:'Taper dose — never stop abruptly. Give with food. Monitor BG in diabetics. Increased infection risk.',
+    doseRange:'5-60 mg/day PO', system:'Immune'},
+  {name:'Atorvastatin',suffix:'statin',drugClass:'Statin',
+    indication:'Hyperlipidemia (lowers LDL)',
+    keyIndications:['Hyperlipidemia','Atherosclerotic CV disease prevention','Post-MI/stroke prevention'],
+    routes:['PO'],safeRoutes:['PO'],
+    sideEffects:['Muscle pain','Liver issues'],
+    criticalAdverse:['Rhabdomyolysis (report muscle pain/dark urine ASAP)','Hepatotoxicity','Myopathy'],
+    monitor:'LFTs, lipid panel, CK if muscle pain, renal function',
+    nursing:'Take in evening (cholesterol synthesis peaks at night). Report unexplained muscle pain immediately. Avoid grapefruit.',
+    doseRange:'10-80 mg/day PO', system:'Cardio'},
+  {name:'Enalapril',suffix:'pril',drugClass:'ACE Inhibitor',
+    indication:'HTN, Heart Failure',
+    keyIndications:['Hypertension','Heart failure','Diabetic nephropathy (renal protection)'],
+    routes:['PO','IV'],safeRoutes:['PO','IV'],
+    sideEffects:['Dry cough','Angioedema'],
+    criticalAdverse:['Angioedema (swelling of face/tongue — emergency)','Persistent dry cough','Hyperkalemia','Hypotension (first-dose)'],
+    monitor:'K+, BUN/Cr, BP (esp. first dose), cough',
+    nursing:'Monitor for angioedema (airway emergency). Contraindicated in pregnancy. Dry cough = switch to ARB.',
+    doseRange:'2.5-40 mg/day PO', system:'Cardio',
+    mnemonic:'ACE → Angioedema, Cough, Elevated Potassium'},
+  {name:'Losartan',suffix:'sartan',drugClass:'ARB',
+    indication:'HTN, Diabetic Nephropathy',
+    keyIndications:['Hypertension','Diabetic nephropathy','HF (if ACE intolerant due to cough)'],
+    routes:['PO'],safeRoutes:['PO'],
+    sideEffects:['Hyperkalemia','Hypotension'],
+    criticalAdverse:['Hyperkalemia','Hypotension','Renal impairment','Angioedema (rare, less than ACE)'],
+    monitor:'K+, BUN/Cr, BP',
+    nursing:'Similar to ACE but NO dry cough. Contraindicated in pregnancy. Monitor renal function.',
+    doseRange:'25-100 mg/day PO', system:'Cardio'},
+  {name:'Lorazepam',suffix:'pam',drugClass:'Benzodiazepine',
+    indication:'Anxiety, Seizures',
+    keyIndications:['Acute anxiety','Status epilepticus','Alcohol withdrawal','Pre-procedure sedation'],
+    routes:['PO','IV','IM','SL'],safeRoutes:['PO','IV','IM'],
+    sideEffects:['Sedation','Resp. depression'],
+    criticalAdverse:['Respiratory depression (esp. with opioids)','Paradoxical agitation in elderly','Physical dependence/withdrawal seizures','Oversedation'],
+    monitor:'RR (hold if < 12), LOC, sedation level, O2 sat',
+    nursing:'Have flumazenil (reversal agent) available. Do NOT combine with opioids/alcohol. Taper to discontinue. Fall precautions.',
+    doseRange:'0.5-2 mg PO q8h; 2-4 mg IV for seizures', system:'Neuro'},
+  {name:'Cephalosporin',suffix:'',drugClass:'Antibiotic',
+    indication:'Bacterial Infection',
+    keyIndications:['Surgical prophylaxis','UTI','Pneumonia','Skin/soft tissue infections'],
+    routes:['PO','IV','IM'],safeRoutes:['PO','IV','IM'],
+    sideEffects:['Diarrhea','Rash'],
+    criticalAdverse:['Anaphylaxis (cross-allergy with PCN ~1-2%)','C. diff colitis','Rash/urticaria'],
+    monitor:'Allergy hx (esp. penicillin), renal function, WBC, temp',
+    nursing:'Ask about PCN allergy. Monitor for superinfection/C. diff (watery diarrhea). Complete full course.',
+    doseRange:'Varies by generation/type', system:'Infection'},
+  {name:'Digoxin',suffix:'',drugClass:'Cardiac Glycoside',
+    indication:'HF, A-fib (strengthens pump)',
+    keyIndications:['Heart failure (increases contractility)','Atrial fibrillation (rate control)'],
+    routes:['PO','IV'],safeRoutes:['PO','IV'],
+    sideEffects:['Bradycardia','Yellow halos'],
+    criticalAdverse:['Digoxin toxicity: N/V, visual changes (yellow-green halos), bradycardia, arrhythmias','Hypokalemia increases toxicity risk'],
+    monitor:'Dig level (therapeutic 0.5-2.0 ng/mL), HR (hold if < 60), K+ (low K+ = dig toxicity)',
+    nursing:'ALWAYS check HR before giving — hold if < 60. Low K+ increases toxicity risk. Antidote: Digibind.',
+    doseRange:'0.125-0.25 mg/day PO', system:'Cardio'},
+  {name:'Lithium',suffix:'',drugClass:'Mood Stabilizer',
+    indication:'Bipolar Disorder',
+    keyIndications:['Bipolar disorder (mania prevention)','Schizoaffective disorder'],
+    routes:['PO'],safeRoutes:['PO'],
+    sideEffects:['Tremors','Polyuria (thirst)'],
+    criticalAdverse:['Lithium toxicity (N/V, tremors, slurred speech, seizures)','Nephrogenic diabetes insipidus (polyuria/polydipsia)','Hypothyroidism'],
+    monitor:'Li+ levels (therapeutic 0.6-1.2 mEq/L), BUN/Cr, thyroid function, Na+',
+    nursing:'Narrow therapeutic index. Maintain adequate Na+ and fluid intake. Dehydration/NSAIDs increase toxicity. Draw levels 12h post-dose.',
+    doseRange:'300-600 mg PO BID-TID', system:'Neuro'},
+  {name:'Potassium',suffix:'',drugClass:'Electrolyte',
+    indication:'Hypokalemia',
+    keyIndications:['Hypokalemia replacement','Prevention with loop diuretics'],
+    routes:['PO','IV (Slow!)'],safeRoutes:['PO','IV'],
+    sideEffects:['GI upset','Arrhythmias'],
+    criticalAdverse:['Hyperkalemia (cardiac arrest)','Cardiac arrhythmias if IV too fast','GI ulceration (PO)'],
+    monitor:'K+ levels, cardiac monitor during IV, renal function',
+    nursing:'NEVER IV push — fatal. Max 10 mEq/hr peripheral, 20 mEq/hr central. PO with food/water. Dilute IV properly.',
+    doseRange:'20-40 mEq PO; 10-20 mEq/hr IV', system:'Electrolyte'},
+  {name:'Labetalol',suffix:'olol',drugClass:'Beta-Blocker',
+    indication:'HTN (Alpha/Beta blocker)',
+    keyIndications:['Hypertensive urgency/emergency','HTN in pregnancy (safe)','Post-op HTN'],
+    routes:['PO','IV'],safeRoutes:['PO','IV'],
+    sideEffects:['Ortho. hypotension','Bradycardia'],
+    criticalAdverse:['Severe bradycardia','Orthostatic hypotension','Bronchospasm','Heart block'],
+    monitor:'HR, BP (esp. orthostatic), lung sounds',
+    nursing:'Keep patient supine during IV administration. Rise slowly. Safe in pregnancy (unlike most beta-blockers).',
+    doseRange:'100-400 mg PO BID; 20 mg IV bolus', system:'Cardio'},
+  {name:'Ferrous Sulfate',suffix:'',drugClass:'Iron Supplement',
+    indication:'Anemia',
+    keyIndications:['Iron deficiency anemia','Prevention in pregnancy'],
+    routes:['PO'],safeRoutes:['PO'],
+    sideEffects:['Constipation','Black stools'],
+    criticalAdverse:['GI distress/constipation','Iron toxicity in overdose (children)','Teeth staining (liquid form)'],
+    monitor:'H&H, reticulocyte count, ferritin, stool color (expected black)',
+    nursing:'Give on empty stomach with vitamin C (increases absorption). Avoid with antacids/dairy/tea. Use straw for liquid. Black stools are normal.',
+    doseRange:'325 mg PO BID-TID', system:'Heme'},
+  {name:'Zolpidem',suffix:'',drugClass:'Sedative/Hypnotic',
+    indication:'Insomnia',
+    keyIndications:['Short-term insomnia treatment'],
+    routes:['PO'],safeRoutes:['PO'],
+    sideEffects:['Dizziness','Sleep-walking'],
+    criticalAdverse:['Complex sleep behaviors (sleep-walking, sleep-driving)','CNS depression','Next-day impairment','Dependence'],
+    monitor:'Sleep quality, behavior changes, daytime drowsiness',
+    nursing:'Take immediately before bed. Do NOT take with alcohol. Fall precautions. Short-term use only. Lower dose in women/elderly.',
+    doseRange:'5-10 mg PO at bedtime', system:'Neuro'},
+  {name:'Enoxaparin',suffix:'parin',drugClass:'Anticoagulant (LMWH)',
+    indication:'DVT/PE Prevention',
+    keyIndications:['DVT/PE prophylaxis (post-surgery)','DVT/PE treatment','ACS'],
+    routes:['SubQ'],safeRoutes:['SubQ'],
+    sideEffects:['Bleeding','Site bruising'],
+    criticalAdverse:['Hemorrhage','HIT (heparin-induced thrombocytopenia)','Spinal/epidural hematoma with spinal procedures'],
+    monitor:'Platelets, anti-Xa levels (if needed), signs of bleeding, injection sites',
+    nursing:'SubQ ONLY — never IM. Rotate abdomen injection sites. Do NOT rub after injection. Do NOT expel air bubble.',
+    doseRange:'30-40 mg SubQ daily (prophylaxis); 1 mg/kg SubQ q12h (treatment)', system:'Heme'},
+  {name:'Thiazide',suffix:'azide',drugClass:'Diuretic',
+    indication:'HTN, Edema',
+    keyIndications:['First-line hypertension','Mild edema','Calcium nephrolithiasis prevention'],
+    routes:['PO'],safeRoutes:['PO'],
+    sideEffects:['Hypokalemia','Hyponatremia'],
+    criticalAdverse:['Hypokalemia','Hyponatremia','Hyperglycemia','Hyperuricemia (gout flare)','Hypercalcemia'],
+    monitor:'K+, Na+, glucose, uric acid, BUN/Cr, BP',
+    nursing:'Give in AM. Monitor electrolytes. May worsen diabetes/gout. Sulfa allergy = use with caution.',
+    doseRange:'12.5-50 mg/day PO', system:'Cardio'},
+  {name:'Nitroglycerin',suffix:'',drugClass:'Vasodilator',
+    indication:'Angina (opens coronary arteries)',
+    keyIndications:['Acute angina relief','Angina prophylaxis','Acute MI','Hypertensive emergency'],
+    routes:['SL','IV','Topical'],safeRoutes:['SL','IV','Topical','Translingual'],
+    sideEffects:['Headache','Hypotension'],
+    criticalAdverse:['Severe hypotension (esp. with PDE5 inhibitors — Viagra)','Reflex tachycardia','Headache (expected, shows it is working)'],
+    monitor:'BP (hold if SBP < 90), HR, pain level (0-10)',
+    nursing:'SL: 1 tab q5min x3, then call 911. Store in dark glass. Do NOT use with Viagra/Cialis (fatal hypotension). Headache = drug is working.',
+    doseRange:'0.4 mg SL q5min x3', system:'Cardio'},
+  {name:'Heparin',suffix:'parin',drugClass:'Anticoagulant',
+    indication:'DVT/PE Treatment',
+    keyIndications:['DVT/PE treatment','ACS/MI','DIC','Dialysis anticoagulation'],
+    routes:['IV','SubQ'],safeRoutes:['IV','SubQ'],
+    sideEffects:['Bleeding','HIT (low platelets)'],
+    criticalAdverse:['Hemorrhage','HIT (heparin-induced thrombocytopenia — stop immediately)','Osteoporosis (long-term)'],
+    monitor:'aPTT (therapeutic 1.5-2.5x normal), platelets (for HIT), signs of bleeding',
+    nursing:'Antidote: protamine sulfate. Monitor aPTT q6h. Never IM. Check for HIT — platelets q2-3 days.',
+    doseRange:'IV: 80 units/kg bolus then 18 units/kg/hr; SubQ: 5000 units q8-12h', system:'Heme'},
+  {name:'Warfarin',suffix:'',drugClass:'Anticoagulant',
+    indication:'A-fib, Valve prophylaxis',
+    keyIndications:['A-fib stroke prevention','Mechanical heart valve','DVT/PE long-term prevention'],
+    routes:['PO'],safeRoutes:['PO'],
+    sideEffects:['Bleeding','Ecchymosis'],
+    criticalAdverse:['Hemorrhage','Teratogenic (contraindicated in pregnancy)','Skin necrosis (rare)','Drug/food interactions'],
+    monitor:'INR (therapeutic 2.0-3.0), PT, signs of bleeding',
+    nursing:'Antidote: vitamin K. Consistent vitamin K diet. INR checked regularly. Avoid NSAIDs. Tons of drug interactions. Contraindicated in pregnancy.',
+    doseRange:'2-10 mg/day PO (dose per INR)', system:'Heme'},
+  {name:'Aspirin',suffix:'',drugClass:'Antiplatelet',
+    indication:'MI/Stroke prevention',
+    keyIndications:['MI prevention','Stroke prevention','Post-stent antiplatelet','Acute MI (chew 325 mg)'],
+    routes:['PO'],safeRoutes:['PO'],
+    sideEffects:['GI bleed','Tinnitus'],
+    criticalAdverse:['GI bleed/ulceration','Tinnitus (toxicity sign)','Reye syndrome in children with viral illness','Bleeding risk'],
+    monitor:'Signs of GI bleeding, tinnitus, CBC',
+    nursing:'Take with food/water. No aspirin in children < 19 (Reye syndrome). Tinnitus = hold and report. Stop before surgery.',
+    doseRange:'81 mg/day (prevention); 325 mg (acute MI)', system:'Heme'},
+  {name:'Diltiazem',suffix:'',drugClass:'CCB (Non-dihydropyridine)',
+    indication:'HTN, A-fib (slows conduction)',
+    keyIndications:['Hypertension','A-fib/flutter rate control','Angina'],
+    routes:['PO','IV'],safeRoutes:['PO','IV'],
+    sideEffects:['Peripheral edema','Bradycardia'],
+    criticalAdverse:['Bradycardia','Heart block','Hypotension','Peripheral edema','Constipation'],
+    monitor:'HR (hold if < 60), BP, ECG, edema',
+    nursing:'Do NOT use with beta-blockers (additive bradycardia). Check HR before giving. Avoid grapefruit juice.',
+    doseRange:'30-120 mg PO TID; 0.25 mg/kg IV bolus', system:'Cardio'},
+  {name:'Methylprednisolone',suffix:'one',drugClass:'Corticosteroid',
+    indication:'Severe Inflammation',
+    keyIndications:['Acute asthma/COPD exacerbation','Spinal cord injury','Severe allergic reaction','Autoimmune flares'],
+    routes:['IV','IM'],safeRoutes:['IV','IM','PO'],
+    sideEffects:['Hyperglycemia','Infection risk'],
+    criticalAdverse:['Hyperglycemia','Immunosuppression','Adrenal crisis if stopped abruptly','GI bleed','Psychosis (high doses)'],
+    monitor:'Blood glucose, signs of infection, BP, mood',
+    nursing:'Same as prednisone — taper, give with food, monitor BG. IV push slowly over 1-2 min.',
+    doseRange:'10-125 mg IV; dose varies widely', system:'Immune'},
+  {name:'Tamsulosin',suffix:'',drugClass:'Alpha-1 Blocker',
+    indication:'BPH (increases urine flow)',
+    keyIndications:['Benign prostatic hyperplasia (BPH)','Kidney stone passage'],
+    routes:['PO'],safeRoutes:['PO'],
+    sideEffects:['Dizziness','Headache'],
+    criticalAdverse:['Orthostatic hypotension (first-dose effect)','Dizziness/syncope','Retrograde ejaculation','Floppy iris syndrome (eye surgery)'],
+    monitor:'BP (orthostatic), urinary symptoms, dizziness',
+    nursing:'Take 30 min after same meal daily. Rise slowly. First-dose orthostatic hypotension. Inform ophthalmologist if eye surgery planned.',
+    doseRange:'0.4 mg PO daily', system:'Renal/GU'},
+  {name:'Isosorbide',suffix:'',drugClass:'Vasodilator (Nitrate)',
+    indication:'Chronic Angina',
+    keyIndications:['Chronic angina prophylaxis','Heart failure (with hydralazine)'],
+    routes:['PO'],safeRoutes:['PO','SL'],
+    sideEffects:['Headache','Flushing'],
+    criticalAdverse:['Severe hypotension','Reflex tachycardia','Headache (tolerance develops)','Syncope'],
+    monitor:'BP, HR, headache severity, pain diary',
+    nursing:'Allow nitrate-free interval (10-12 hrs) to prevent tolerance. Do NOT use with PDE5 inhibitors. Headache = working.',
+    doseRange:'5-40 mg PO BID-TID (with 14-hr nitrate-free interval)', system:'Cardio'},
+  {name:'Metformin',suffix:'',drugClass:'Biguanide',
+    indication:'Type 2 Diabetes',
+    keyIndications:['First-line Type 2 DM','PCOS','Pre-diabetes prevention'],
+    routes:['PO'],safeRoutes:['PO'],
+    sideEffects:['Diarrhea','Lactic Acidosis'],
+    criticalAdverse:['Lactic acidosis (rare but fatal — stop if renal impairment)','GI upset (N/V/D)','B12 deficiency (long-term)'],
+    monitor:'BG/A1C, renal function (hold if GFR < 30), B12 levels',
+    nursing:'Hold 48 hrs before/after contrast dye. Take with food (reduces GI upset). Does NOT cause hypoglycemia alone. Check renal function.',
+    doseRange:'500-2000 mg/day PO divided BID', system:'Endocrine'},
+  {name:'Kayexalate',suffix:'',drugClass:'K-Binder',
+    indication:'Hyperkalemia (removes K)',
+    keyIndications:['Hyperkalemia treatment (non-emergent)'],
+    routes:['PO','Rectal'],safeRoutes:['PO','Rectal'],
+    sideEffects:['Constipation','Gastric irritation'],
+    criticalAdverse:['Intestinal necrosis (rare)','Hypokalemia (overcorrection)','Constipation/fecal impaction','Sodium overload'],
+    monitor:'K+ levels (q2-6h), bowel sounds, Na+, signs of hypokalemia',
+    nursing:'Do NOT give to post-op or ileus patients. Exchanges Na+ for K+ in gut. Works slowly (hours). Not for acute life-threatening hyperkalemia.',
+    doseRange:'15-60 g PO; 30-50 g rectal', system:'Electrolyte'},
 ];
 
 const MED_SYSTEMS = ['All', 'Cardio', 'Neuro', 'Endocrine', 'Heme', 'Immune', 'Infection', 'Renal/GU', 'Electrolyte'];
@@ -2188,16 +2414,32 @@ function PharmCards() {
     }
     return React.createElement(React.Fragment, null,
       React.createElement('div', {className:'med-card-name', style:{fontSize:'1.4rem', textAlign:'center'}}, highlightSuffix(m.name)),
-      React.createElement('div', {className:'med-card-class', style:{textAlign:'center', marginBottom:12}}, m.drugClass),
-      React.createElement('div', {style:{fontSize:'1.1rem', fontWeight:600, marginBottom:8, textAlign:'center'}}, m.indication),
-      React.createElement('div', {style:{color:'var(--text2)', fontSize:'0.95rem', textAlign:'center'}},
-        React.createElement('strong', null, 'Side Effects: '), m.sideEffects.join(', ')
+      React.createElement('div', {className:'med-card-class', style:{textAlign:'center', marginBottom:10}}, m.drugClass),
+      React.createElement('div', {style:{fontSize:'1rem', fontWeight:600, marginBottom:6, textAlign:'center'}}, m.indication),
+      m.keyIndications && React.createElement('div', {style:{marginBottom:8, fontSize:'0.85rem', color:'var(--text2)', textAlign:'left'}},
+        React.createElement('strong', {style:{color:'var(--accent)'}}, 'Key Indications: '),
+        m.keyIndications.join(' • ')
       ),
-      React.createElement('div', {className:'med-card-row', style:{justifyContent:'center', marginTop:10}},
+      React.createElement('div', {style:{marginBottom:8, fontSize:'0.85rem', textAlign:'left'}},
+        React.createElement('strong', {style:{color:'var(--red)'}}, 'Critical: '),
+        React.createElement('span', {style:{color:'var(--text2)'}}, (m.criticalAdverse || m.sideEffects).slice(0,3).join(' • '))
+      ),
+      m.monitor && React.createElement('div', {style:{marginBottom:8, fontSize:'0.85rem', textAlign:'left'}},
+        React.createElement('strong', {style:{color:'var(--green)'}}, 'Monitor: '),
+        React.createElement('span', {style:{color:'var(--text2)'}}, m.monitor)
+      ),
+      m.doseRange && React.createElement('div', {style:{marginBottom:8, fontSize:'0.85rem', textAlign:'left'}},
+        React.createElement('strong', {style:{color:'var(--orange)'}}, 'Dose: '),
+        React.createElement('span', {style:{color:'var(--text2)'}}, m.doseRange)
+      ),
+      React.createElement('div', {className:'med-card-row', style:{justifyContent:'center', marginTop:8}},
         m.routes.map(r => React.createElement('span', {key:r, className:'med-tag med-tag-route'}, r)),
         React.createElement('span', {className:'med-tag med-tag-system'}, m.system)
       ),
-      m.mnemonic && React.createElement('div', {style:{marginTop:12, padding:'8px 12px', background:'rgba(245,158,11,0.1)', borderRadius:8, fontSize:'0.85rem', color:'var(--orange)', textAlign:'center'}},
+      m.nursing && React.createElement('div', {style:{marginTop:8, padding:'8px 12px', background:'rgba(59,130,246,0.08)', borderRadius:8, fontSize:'0.82rem', color:'var(--accent)', textAlign:'left'}},
+        '\uD83D\uDC69\u200D\u2695\uFE0F ', m.nursing
+      ),
+      m.mnemonic && React.createElement('div', {style:{marginTop:8, padding:'8px 12px', background:'rgba(245,158,11,0.1)', borderRadius:8, fontSize:'0.82rem', color:'var(--orange)', textAlign:'center'}},
         '\uD83D\uDCA1 ', m.mnemonic
       )
     );
@@ -2286,15 +2528,25 @@ function PharmCards() {
           ) : React.createElement(React.Fragment, null,
             React.createElement('div', {className:'med-card-name'}, highlightSuffix(m.name)),
             React.createElement('div', {className:'med-card-class'}, m.drugClass),
-            React.createElement('div', {style:{margin:'8px 0', fontWeight:600}}, m.indication),
-            React.createElement('div', {style:{color:'var(--text2)', fontSize:'0.9rem'}},
-              React.createElement('strong', null, 'Side Effects: '), m.sideEffects.join(', ')
+            React.createElement('div', {style:{margin:'6px 0', fontWeight:600, fontSize:'0.95rem'}}, m.indication),
+            m.keyIndications && React.createElement('div', {style:{fontSize:'0.82rem', color:'var(--text2)', marginBottom:4}},
+              React.createElement('strong', {style:{color:'var(--accent)'}}, 'Indications: '), m.keyIndications.join(' • ')
+            ),
+            React.createElement('div', {style:{fontSize:'0.82rem', marginBottom:4}},
+              React.createElement('strong', {style:{color:'var(--red)'}}, 'Critical: '),
+              React.createElement('span', {style:{color:'var(--text2)'}}, (m.criticalAdverse || m.sideEffects).slice(0,2).join(' • '))
+            ),
+            m.monitor && React.createElement('div', {style:{fontSize:'0.82rem', color:'var(--text2)', marginBottom:4}},
+              React.createElement('strong', {style:{color:'var(--green)'}}, 'Monitor: '), m.monitor
+            ),
+            m.doseRange && React.createElement('div', {style:{fontSize:'0.82rem', color:'var(--text2)', marginBottom:4}},
+              React.createElement('strong', {style:{color:'var(--orange)'}}, 'Dose: '), m.doseRange
             ),
             React.createElement('div', {className:'med-card-row'},
               m.routes.map(r => React.createElement('span', {key:r, className:'med-tag med-tag-route'}, r)),
               React.createElement('span', {className:'med-tag med-tag-system'}, m.system)
             ),
-            m.mnemonic && React.createElement('div', {style:{marginTop:10, padding:'8px 12px', background:'rgba(245,158,11,0.1)', borderRadius:8, fontSize:'0.85rem', color:'var(--orange)'}},
+            m.mnemonic && React.createElement('div', {style:{marginTop:8, padding:'6px 10px', background:'rgba(245,158,11,0.1)', borderRadius:8, fontSize:'0.8rem', color:'var(--orange)'}},
               '\uD83D\uDCA1 ', m.mnemonic
             )
           )
@@ -2631,6 +2883,260 @@ function PharmSpeed() {
 }
 
 // ============================
+// PHARM: CARD PULL SIMULATION
+// ============================
+function PharmCardPull() {
+  const POSSIBLE_ROUTES = ['PO','IV','IM','SubQ','Topical','Rectal','Inhaled','SL','Transdermal'];
+  const [phase, setPhase] = useState('intro'); // intro, card, class, indications, adverse, doseCheck, results
+  const [deck, setDeck] = useState([]);
+  const [idx, setIdx] = useState(0);
+  const [currentCard, setCurrentCard] = useState(null);
+  const [givenDose, setGivenDose] = useState('');
+  const [givenRoute, setGivenRoute] = useState('');
+  const [isDoseSafe, setIsDoseSafe] = useState(true);
+  const [isRouteSafe, setIsRouteSafe] = useState(true);
+  const [classInput, setClassInput] = useState('');
+  const [classRevealed, setClassRevealed] = useState(false);
+  const [classSelfScore, setClassSelfScore] = useState(null);
+  const [indRevealed, setIndRevealed] = useState(false);
+  const [indSelfScore, setIndSelfScore] = useState(null);
+  const [advRevealed, setAdvRevealed] = useState(false);
+  const [advSelfScore, setAdvSelfScore] = useState(null);
+  const [doseAnswer, setDoseAnswer] = useState(null);
+  const [doseRevealed, setDoseRevealed] = useState(false);
+  const [results, setResults] = useState([]);
+  const [showNursing, setShowNursing] = useState(false);
+
+  // Generate a fake dose+route for a med (sometimes wrong)
+  const generateDoseRoute = (med) => {
+    // 70% chance dose is safe, 30% wrong
+    const safeDose = Math.random() < 0.7;
+    const safeRoute = Math.random() < 0.7;
+    let dose = med.doseRange || 'See reference';
+    if (!safeDose && dose !== 'See reference') {
+      // Create an unsafe dose by multiplying the numbers
+      dose = dose.replace(/(\d+)/g, (m) => String(Math.round(parseInt(m) * (2 + Math.random() * 3))));
+      dose = dose + ' (generated)';
+    } else {
+      dose = dose.split(';')[0].trim(); // take first safe dose
+    }
+    let route;
+    if (safeRoute && med.safeRoutes && med.safeRoutes.length > 0) {
+      route = med.safeRoutes[Math.floor(Math.random() * med.safeRoutes.length)];
+    } else {
+      const unsafeRoutes = POSSIBLE_ROUTES.filter(r => !med.safeRoutes || !med.safeRoutes.includes(r));
+      route = unsafeRoutes.length > 0 ? unsafeRoutes[Math.floor(Math.random() * unsafeRoutes.length)] : 'IV';
+    }
+    return { dose, route, isSafeDose: safeDose, isSafeRoute: safeRoute || (med.safeRoutes && med.safeRoutes.includes(route)) };
+  };
+
+  const startPull = (count) => {
+    const d = shuffle(MEDS).slice(0, count || MEDS.length);
+    const cards = d.map(m => {
+      const dr = generateDoseRoute(m);
+      return { med: m, ...dr };
+    });
+    setDeck(cards);
+    setIdx(0);
+    setResults([]);
+    resetCardState();
+    setPhase('card');
+  };
+
+  const resetCardState = () => {
+    setClassInput('');
+    setClassRevealed(false);
+    setClassSelfScore(null);
+    setIndRevealed(false);
+    setIndSelfScore(null);
+    setAdvRevealed(false);
+    setAdvSelfScore(null);
+    setDoseAnswer(null);
+    setDoseRevealed(false);
+    setShowNursing(false);
+  };
+
+  const nextCard = () => {
+    // Save result
+    const card = deck[idx];
+    const score = {
+      med: card.med.name,
+      classScore: classSelfScore || 0,
+      indScore: indSelfScore || 0,
+      advScore: advSelfScore || 0,
+      doseCorrect: doseAnswer === (card.isSafeDose && card.isSafeRoute),
+    };
+    setResults(r => [...r, score]);
+    const ni = idx + 1;
+    if (ni >= deck.length) {
+      setPhase('results');
+    } else {
+      setIdx(ni);
+      resetCardState();
+    }
+  };
+
+  // INTRO
+  if (phase === 'intro') {
+    return React.createElement('div', {style:{textAlign:'center', padding:30}},
+      React.createElement('div', {style:{fontSize:'3.5rem', marginBottom:12}}, '\uD83C\uDCCF'),
+      React.createElement('h2', {style:{marginBottom:8}}, 'Card Pull Simulation'),
+      React.createElement('p', {style:{color:'var(--text2)', marginBottom:20, maxWidth:500, margin:'0 auto 20px', lineHeight:1.6}},
+        'Simulates drawing a random med card from your professor\'s desk. You\'ll see the drug name + a dose/route (which may or may not be safe). Identify the drug class, key indications, critical adverse effects, then evaluate if the dose/route is safe.'
+      ),
+      React.createElement('div', {style:{display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap'}},
+        React.createElement('button', {className:'btn btn-primary', style:{padding:'12px 28px', fontSize:'1rem'}, onClick:()=>startPull(5)}, '5 Cards'),
+        React.createElement('button', {className:'btn btn-outline', style:{padding:'12px 28px', fontSize:'1rem'}, onClick:()=>startPull(10)}, '10 Cards'),
+        React.createElement('button', {className:'btn btn-outline', style:{padding:'12px 28px', fontSize:'1rem'}, onClick:()=>startPull(MEDS.length)}, 'All ' + MEDS.length + ' Cards')
+      )
+    );
+  }
+
+  // RESULTS
+  if (phase === 'results') {
+    const totalPoints = results.reduce((s, r) => s + r.classScore + r.indScore + r.advScore + (r.doseCorrect ? 1 : 0), 0);
+    const maxPoints = results.length * 4; // 1 each for class, ind, adv, dose
+    const pct = Math.round(totalPoints / maxPoints * 100);
+    const weak = results.filter(r => (r.classScore + r.indScore + r.advScore + (r.doseCorrect ? 1 : 0)) < 3);
+    return React.createElement('div', {style:{textAlign:'center', padding:20}},
+      React.createElement('div', {style:{fontSize:'2.5rem', marginBottom:12}}, pct >= 80 ? '\uD83C\uDF89' : pct >= 60 ? '\uD83D\uDCCA' : '\uD83D\uDCDA'),
+      React.createElement('h2', {style:{marginBottom:8}}, 'Card Pull Complete'),
+      React.createElement('div', {style:{fontSize:'2.2rem', fontWeight:800, color: pct >= 80 ? 'var(--green)' : pct >= 60 ? 'var(--orange)' : 'var(--red)', marginBottom:4}},
+        pct + '%'
+      ),
+      React.createElement('p', {style:{color:'var(--text2)', marginBottom:20}}, totalPoints + ' / ' + maxPoints + ' points'),
+      weak.length > 0 && React.createElement('div', {className:'card', style:{textAlign:'left', marginBottom:16, maxWidth:500, margin:'0 auto 16px'}},
+        React.createElement('h3', {style:{color:'var(--red)', marginBottom:10, fontSize:'0.95rem'}}, '\uD83D\uDD34 Needs more study (' + weak.length + ')'),
+        weak.map((r, i) => React.createElement('div', {key:i, style:{padding:'6px 0', borderBottom:'1px solid var(--surface2)', fontSize:'0.9rem'}},
+          React.createElement('strong', null, r.med),
+          ' — class:', r.classScore ? '\u2705' : '\u274C',
+          ' ind:', r.indScore ? '\u2705' : '\u274C',
+          ' adv:', r.advScore ? '\u2705' : '\u274C',
+          ' dose:', r.doseCorrect ? '\u2705' : '\u274C'
+        ))
+      ),
+      React.createElement('div', {style:{display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap'}},
+        React.createElement('button', {className:'btn btn-primary', onClick:()=>startPull(results.length)}, 'Try Again (' + results.length + ' cards)'),
+        React.createElement('button', {className:'btn btn-outline', onClick:()=>setPhase('intro')}, 'Back')
+      )
+    );
+  }
+
+  // ACTIVE CARD
+  const card = deck[idx];
+  if (!card) return null;
+  const med = card.med;
+
+  // Section builder helper
+  const section = (title, emoji, revealed, setRevealed, selfScore, setSelfScore, content) => {
+    return React.createElement('div', {className:'card', style:{marginBottom:12, border: selfScore === 1 ? '1px solid var(--green)' : selfScore === 0 ? '1px solid var(--red)' : '1px solid var(--surface2)'}},
+      React.createElement('div', {style:{display:'flex', justifyContent:'space-between', alignItems:'center'}},
+        React.createElement('h3', {style:{fontSize:'0.95rem', margin:0}}, emoji + ' ' + title),
+        !revealed && React.createElement('button', {className:'btn btn-primary', style:{padding:'6px 16px', fontSize:'0.85rem'}, onClick:()=>setRevealed(true)}, 'Reveal')
+      ),
+      revealed && React.createElement('div', {style:{marginTop:10}},
+        content,
+        selfScore === null && React.createElement('div', {style:{display:'flex', gap:8, marginTop:10, justifyContent:'center'}},
+          React.createElement('button', {className:'btn', style:{background:'var(--green)', color:'white', padding:'6px 18px'}, onClick:()=>setSelfScore(1)}, '\u2713 Got it'),
+          React.createElement('button', {className:'btn', style:{background:'var(--red)', color:'white', padding:'6px 18px'}, onClick:()=>setSelfScore(0)}, '\u2717 Missed it')
+        ),
+        selfScore !== null && React.createElement('div', {style:{textAlign:'center', color: selfScore ? 'var(--green)' : 'var(--red)', fontSize:'0.85rem', fontWeight:600, marginTop:6}},
+          selfScore ? '\u2705 Marked as known' : '\u274C Marked for review'
+        )
+      )
+    );
+  };
+
+  const allScored = classSelfScore !== null && indSelfScore !== null && advSelfScore !== null && doseRevealed;
+
+  return React.createElement('div', null,
+    // Progress bar
+    React.createElement('div', {style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}},
+      React.createElement('span', {style:{color:'var(--text2)', fontSize:'0.9rem'}}, 'Card ' + (idx + 1) + ' / ' + deck.length),
+      React.createElement('button', {className:'btn btn-outline', style:{padding:'4px 12px', fontSize:'0.8rem'}, onClick:()=>setPhase('intro')}, 'Exit')
+    ),
+    React.createElement('div', {style:{height:6, borderRadius:3, background:'var(--surface2)', marginBottom:16, overflow:'hidden'}},
+      React.createElement('div', {style:{height:'100%', borderRadius:3, width: Math.round((idx/deck.length)*100)+'%', background:'linear-gradient(90deg, var(--accent), var(--accent2))', transition:'width 0.3s'}})
+    ),
+
+    // THE CARD — drug name + given dose/route
+    React.createElement('div', {className:'card', style:{textAlign:'center', marginBottom:16, background:'linear-gradient(135deg, var(--surface), var(--bg))', border:'2px solid var(--accent2)'}},
+      React.createElement('div', {style:{fontSize:'0.8rem', color:'var(--accent2)', textTransform:'uppercase', letterSpacing:2, marginBottom:8}}, 'Professor\'s Card'),
+      React.createElement('div', {style:{fontSize:'2rem', fontWeight:800, marginBottom:8}}, highlightSuffix(med.name)),
+      React.createElement('div', {style:{fontSize:'1.1rem', color:'var(--orange)', fontWeight:600}},
+        card.dose + '  •  ' + card.route
+      )
+    ),
+
+    // Step 1: Drug Class
+    section('What drug class?', '\uD83C\uDFF7\uFE0F', classRevealed, setClassRevealed, classSelfScore, setClassSelfScore,
+      React.createElement('div', {style:{fontSize:'1.15rem', fontWeight:700, color:'var(--accent2)', textAlign:'center', padding:'8px 0'}}, med.drugClass)
+    ),
+
+    // Step 2: Key Indications
+    section('Key Indications', '\uD83C\uDFAF', indRevealed, setIndRevealed, indSelfScore, setIndSelfScore,
+      React.createElement('div', null,
+        (med.keyIndications || [med.indication]).map((ind, i) =>
+          React.createElement('div', {key:i, style:{padding:'4px 0', fontSize:'0.95rem'}}, '\u2022 ' + ind)
+        )
+      )
+    ),
+
+    // Step 3: Critical Adverse Effects
+    section('Critical Adverse Effects', '\u26A0\uFE0F', advRevealed, setAdvRevealed, advSelfScore, setAdvSelfScore,
+      React.createElement('div', null,
+        (med.criticalAdverse || med.sideEffects).map((ae, i) =>
+          React.createElement('div', {key:i, style:{padding:'4px 0', fontSize:'0.95rem', color:'var(--red)'}}, '\u26A0 ' + ae)
+        )
+      )
+    ),
+
+    // Step 4: Dose/Route Safety Check
+    React.createElement('div', {className:'card', style:{marginBottom:12, border: doseRevealed ? (doseAnswer === (card.isSafeDose && card.isSafeRoute) ? '1px solid var(--green)' : '1px solid var(--red)') : '1px solid var(--surface2)'}},
+      React.createElement('h3', {style:{fontSize:'0.95rem', marginBottom:10}}, '\uD83D\uDC8A Is this dose & route safe?'),
+      React.createElement('div', {style:{textAlign:'center', marginBottom:10, fontSize:'1rem', fontWeight:600, color:'var(--orange)'}},
+        card.dose + '  •  ' + card.route
+      ),
+      !doseRevealed && React.createElement('div', {style:{display:'flex', gap:10, justifyContent:'center'}},
+        React.createElement('button', {className:'btn', style:{background:'var(--green)', color:'white', padding:'10px 24px', fontSize:'1rem'}, onClick:()=>{setDoseAnswer(true);setDoseRevealed(true);}}, '\u2705 Safe'),
+        React.createElement('button', {className:'btn', style:{background:'var(--red)', color:'white', padding:'10px 24px', fontSize:'1rem'}, onClick:()=>{setDoseAnswer(false);setDoseRevealed(true);}}, '\u274C Unsafe')
+      ),
+      doseRevealed && React.createElement('div', {style:{textAlign:'center'}},
+        React.createElement('div', {style:{fontSize:'1.1rem', fontWeight:700, marginBottom:6,
+          color: doseAnswer === (card.isSafeDose && card.isSafeRoute) ? 'var(--green)' : 'var(--red)'}},
+          doseAnswer === (card.isSafeDose && card.isSafeRoute) ? '\u2705 Correct!' : '\u274C Incorrect'
+        ),
+        React.createElement('div', {style:{fontSize:'0.9rem', color:'var(--text2)', marginBottom:4}},
+          'Actual: Dose is ' + (card.isSafeDose ? 'SAFE' : 'UNSAFE') + ', Route is ' + (card.isSafeRoute ? 'SAFE' : 'UNSAFE')
+        ),
+        React.createElement('div', {style:{fontSize:'0.85rem', color:'var(--text3)'}},
+          'Safe routes: ' + (med.safeRoutes || med.routes).join(', ') + ' | Dose range: ' + (med.doseRange || 'N/A')
+        )
+      )
+    ),
+
+    // Nursing tip (expandable)
+    React.createElement('div', {className:'card', style:{marginBottom:12, cursor:'pointer'}, onClick:()=>setShowNursing(!showNursing)},
+      React.createElement('div', {style:{display:'flex', justifyContent:'space-between', alignItems:'center'}},
+        React.createElement('h3', {style:{fontSize:'0.95rem', margin:0}}, '\uD83D\uDC69\u200D\u2695\uFE0F Nursing Considerations'),
+        React.createElement('span', {style:{color:'var(--text3)', fontSize:'0.85rem'}}, showNursing ? '\u25B2' : '\u25BC')
+      ),
+      showNursing && React.createElement('div', {style:{marginTop:10, fontSize:'0.9rem', lineHeight:1.6}},
+        React.createElement('div', {style:{marginBottom:6}}, React.createElement('strong', null, 'Monitor: '), med.monitor || 'See reference'),
+        React.createElement('div', {style:{color:'var(--orange)'}}, React.createElement('strong', null, 'Key: '), med.nursing || 'See reference')
+      )
+    ),
+
+    // Next button
+    allScored && React.createElement('div', {style:{textAlign:'center', marginTop:16}},
+      React.createElement('button', {className:'btn btn-primary', style:{padding:'12px 32px', fontSize:'1.05rem'}, onClick:nextCard},
+        idx < deck.length - 1 ? 'Next Card \u2192' : 'See Results'
+      )
+    )
+  );
+}
+
+// ============================
 // LAB DAY TEST
 // ============================
 function LabDayTest({ progress, setProgress }) {
@@ -2953,6 +3459,7 @@ function PharmHub() {
   const [mode, setMode] = useState('cards');
   const modes = [
     {id:'cards', label:'\uD83D\uDC8A Flashcards'},
+    {id:'pull', label:'\uD83C\uDCCF Card Pull'},
     {id:'reverse', label:'\uD83D\uDD04 Reverse Mode'},
     {id:'suffix', label:'\uD83E\uDDE9 Suffix Game'},
     {id:'speed', label:'\u26A1 Speed Rounds'},
@@ -2964,6 +3471,7 @@ function PharmHub() {
       modes.map(m => React.createElement('button', {key:m.id, className:mode===m.id?'active':'', onClick:()=>setMode(m.id)}, m.label))
     ),
     mode === 'cards' && React.createElement(PharmCards),
+    mode === 'pull' && React.createElement(PharmCardPull),
     mode === 'reverse' && React.createElement(PharmReverse),
     mode === 'suffix' && React.createElement(PharmSuffixGame),
     mode === 'speed' && React.createElement(PharmSpeed)
