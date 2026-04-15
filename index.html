@@ -2637,17 +2637,23 @@ function LabDayTest({ progress, setProgress }) {
   const labQs = QUESTIONS.filter(q => q.exam || q.examSimilar);
   const examQs = labQs.filter(q => q.exam);
   const similarQs = labQs.filter(q => q.examSimilar);
-  const [mode, setMode] = useState('menu'); // menu, practice, test
-  const [qIdx, setQIdx] = useState(0);
+  const savedLab = progress.labDayPosition || {mode:'menu', qIdx:0, filterType:'all'};
+  const [mode, setMode] = useState(savedLab.mode);
+  const [qIdx, setQIdx] = useState(savedLab.qIdx);
   const [stepInputs, setStepInputs] = useState({});
   const [stepStatus, setStepStatus] = useState({});
   const [activeStep, setActiveStep] = useState(0);
   const [showHints, setShowHints] = useState({});
   const [completed, setCompleted] = useState(false);
   const [hlOn, setHlOn] = useState(false);
-  const [filterType, setFilterType] = useState('all'); // all, exam, similar
+  const [filterType, setFilterType] = useState(savedLab.filterType);
   const [testAnswers, setTestAnswers] = useState({});
   const [testSubmitted, setTestSubmitted] = useState(false);
+
+  // Save position whenever it changes
+  useEffect(() => {
+    setProgress(p => ({...p, labDayPosition: {mode, qIdx, filterType}}));
+  }, [mode, qIdx, filterType]);
 
   const filtered = filterType === 'exam' ? examQs : filterType === 'similar' ? similarQs : labQs;
 
