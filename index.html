@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MedMaster</title>
-<meta name="app-version" content="3">
+<meta name="app-version" content="4">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
@@ -3301,6 +3301,9 @@ Remember: You're testing the student verbally, like a real clinical exam. Be con
   };
 
   // STT: start listening
+  // Ref to track all speech text (final + interim) so we never lose it
+  const liveTranscriptRef = useRef('');
+
   const startListening = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -3308,31 +3311,40 @@ Remember: You're testing the student verbally, like a real clinical exam. Be con
       return;
     }
     const recognition = new SpeechRecognition();
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
     let finalTranscript = '';
+    liveTranscriptRef.current = '';
     recognition.onresult = (event) => {
       let interim = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      finalTranscript = '';
+      for (let i = 0; i < event.results.length; i++) {
         if (event.results[i].isFinal) {
           finalTranscript += event.results[i][0].transcript;
         } else {
           interim += event.results[i][0].transcript;
         }
       }
-      setTranscript(finalTranscript + interim);
+      const combined = (finalTranscript + interim).trim();
+      liveTranscriptRef.current = combined;
+      setTranscript(combined);
     };
     recognition.onend = () => {
       setIsListening(false);
-      if (finalTranscript.trim()) {
-        sendMessage(finalTranscript.trim());
+      // Use whatever we captured — final or interim
+      const text = liveTranscriptRef.current.trim();
+      if (text) {
+        sendMessage(text);
       }
+      liveTranscriptRef.current = '';
       setTranscript('');
     };
     recognition.onerror = (e) => {
       setIsListening(false);
-      if (e.error === 'not-allowed') setUseText(true);
+      if (e.error === 'not-allowed' || e.error === 'no-speech') {
+        if (e.error === 'not-allowed') setUseText(true);
+      }
     };
     recognitionRef.current = recognition;
     recognition.start();
@@ -3342,7 +3354,7 @@ Remember: You're testing the student verbally, like a real clinical exam. Be con
 
   const stopListening = () => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try { recognitionRef.current.stop(); } catch(e) {}
     }
   };
 
