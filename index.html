@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MedMaster</title>
-<meta name="app-version" content="10">
+<meta name="app-version" content="11">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <!-- Firebase SDK -->
@@ -20,10 +20,39 @@
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height:100vh; }
 
-  .app { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .app { display:flex; min-height:100vh; }
+  .app-main { flex:1; padding:20px 24px; max-width:1100px; margin:0 auto; width:100%; overflow-y:auto; }
 
-  /* NAV */
-  .nav { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; align-items:center; }
+  /* SIDEBAR */
+  .sidebar { width:240px; background:var(--surface); border-right:1px solid var(--surface2); display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0; z-index:100; transition:transform 0.25s ease; }
+  .sidebar-brand { padding:20px 18px 12px; display:flex; align-items:center; justify-content:space-between; }
+  .sidebar-brand h1 { font-size:1.3rem; font-weight:800; background:linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; cursor:pointer; }
+  .sidebar-user { padding:0 18px 16px; font-size:0.8rem; color:var(--text3); }
+  .sidebar-section { padding:6px 12px; font-size:0.65rem; text-transform:uppercase; letter-spacing:1.5px; color:var(--text3); font-weight:700; margin-top:8px; }
+  .sidebar-nav { flex:1; overflow-y:auto; padding:0 8px; }
+  .sidebar-item { display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:10px; cursor:pointer; font-size:0.88rem; font-weight:500; color:var(--text2); transition:all 0.15s; border:none; background:none; width:100%; text-align:left; }
+  .sidebar-item:hover { background:var(--surface2); color:var(--text); }
+  .sidebar-item.active { background:rgba(59,130,246,0.15); color:var(--accent); font-weight:600; }
+  .sidebar-item .si-icon { width:22px; text-align:center; font-size:1rem; flex-shrink:0; }
+  .sidebar-item .si-label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sidebar-item .si-badge { margin-left:auto; background:var(--red); color:white; font-size:0.7rem; font-weight:700; padding:2px 7px; border-radius:10px; }
+  .sidebar-bottom { padding:12px; border-top:1px solid var(--surface2); }
+  .sidebar-spacer { width:240px; flex-shrink:0; }
+
+  /* Mobile sidebar */
+  .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99; backdrop-filter:blur(2px); }
+  .sidebar-toggle { display:none; position:fixed; top:12px; left:12px; z-index:98; background:var(--surface); border:1px solid var(--surface2); border-radius:10px; padding:8px 12px; cursor:pointer; color:var(--text); font-size:1.2rem; }
+  @media (max-width: 768px) {
+    .sidebar { transform:translateX(-100%); }
+    .sidebar.open { transform:translateX(0); }
+    .sidebar-overlay.open { display:block; }
+    .sidebar-toggle { display:block; }
+    .sidebar-spacer { display:none; }
+    .app-main { padding:16px; padding-top:52px; }
+  }
+
+  /* OLD NAV — kept for compatibility but hidden */
+  .nav { display:none; }
   .nav-brand { font-size:1.3rem; font-weight:800; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-right:auto; }
   .nav-btn { padding:8px 16px; border:none; border-radius:8px; cursor:pointer; font-size:0.85rem; font-weight:600; transition:all 0.2s; background:var(--surface); color:var(--text2); }
   .nav-btn:hover { background:var(--surface2); color:var(--text); }
@@ -392,8 +421,7 @@
   @keyframes fadeOut { to{opacity:0;transform:translateY(-10px)} }
 
   /* ONLINE BADGE */
-  .online-count-badge { position:fixed; bottom:80px; left:16px; padding:6px 12px; background:var(--surface); border:1px solid var(--surface2); border-radius:20px; font-size:0.8rem; color:var(--text2); z-index:100; cursor:pointer; display:flex; align-items:center; gap:6px; }
-  .online-count-badge:hover { border-color:var(--accent); }
+  .online-count-badge { display:none; }
   .nav-greeting { font-size:0.8rem; color:var(--text3); font-weight:400; margin-left:-4px; margin-right:4px; white-space:nowrap; }
   @keyframes toast-shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
 
@@ -1496,6 +1524,539 @@ function Calculator({ show, onToggle }) {
 // ============================
 // HOME SCREEN
 // ============================
+// ============================
+// ACTIVITY FEED
+// ============================
+function postActivity(authUser, type, detail) {
+  if (!firebaseDb || !authUser) return;
+  firebaseDb.ref('activityFeed').push({
+    uid: authUser.uid,
+    username: authUser.displayName || 'Anonymous',
+    type: type, // 'test_score' | 'streak' | 'milestone' | 'study'
+    detail: detail, // e.g. { score: 85, questions: 10 }
+    timestamp: firebase.database.ServerValue.TIMESTAMP
+  });
+  // Keep feed trimmed: remove entries older than 3 days
+  const cutoff = Date.now() - 3 * 86400000;
+  firebaseDb.ref('activityFeed').orderByChild('timestamp').endAt(cutoff).once('value', snap => {
+    snap.forEach(child => child.ref.remove());
+  });
+}
+
+function ActivityFeed() {
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    if (!firebaseDb) return;
+    const ref = firebaseDb.ref('activityFeed').orderByChild('timestamp').limitToLast(20);
+    const onVal = ref.on('value', snap => {
+      const data = snap.val() || {};
+      const list = Object.entries(data).map(([k, v]) => ({id: k, ...v})).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      setItems(list);
+    });
+    return () => ref.off('value', onVal);
+  }, []);
+
+  if (items.length === 0) return null;
+
+  const timeAgo = (ts) => {
+    if (!ts) return '';
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    return Math.floor(hrs / 24) + 'd ago';
+  };
+
+  const getIcon = (type) => {
+    switch(type) {
+      case 'test_score': return '\uD83D\uDCDD';
+      case 'streak': return '\uD83D\uDD25';
+      case 'milestone': return '\uD83C\uDFC6';
+      case 'study': return '\uD83D\uDCDA';
+      default: return '\u2728';
+    }
+  };
+
+  const getText = (item) => {
+    const d = item.detail || {};
+    switch(item.type) {
+      case 'test_score': return 'scored ' + (d.score || 0) + '% on a ' + (d.questions || '?') + '-question test';
+      case 'streak': return 'is on a ' + (d.days || 0) + '-day study streak!';
+      case 'milestone': return d.text || 'hit a milestone!';
+      case 'study': return 'started studying ' + (d.page || '');
+      default: return 'did something awesome';
+    }
+  };
+
+  return React.createElement('div', {style:{marginBottom:20}},
+    React.createElement('h3', {style:{fontSize:'1rem', marginBottom:12, display:'flex', alignItems:'center', gap:8}},
+      '\uD83D\uDCE1', React.createElement('span', null, 'Classmate Activity')
+    ),
+    React.createElement('div', {style:{display:'flex', flexDirection:'column', gap:6}},
+      items.slice(0, 8).map(item =>
+        React.createElement('div', {key:item.id, style:{display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:'var(--surface)', borderRadius:10, fontSize:'0.88rem'}},
+          React.createElement('span', null, getIcon(item.type)),
+          React.createElement('span', null,
+            React.createElement('strong', {style:{color:'var(--accent)'}}, item.username),
+            ' ' + getText(item)
+          ),
+          React.createElement('span', {style:{marginLeft:'auto', color:'var(--text3)', fontSize:'0.75rem', whiteSpace:'nowrap'}}, timeAgo(item.timestamp))
+        )
+      )
+    )
+  );
+}
+
+// ============================
+// STUDY ROOMS
+// ============================
+function StudyRooms({ authUser }) {
+  const [rooms, setRooms] = useState({});
+  const [newRoomName, setNewRoomName] = useState('');
+  const [activeRoom, setActiveRoom] = useState(null);
+  const [chatMsg, setChatMsg] = useState('');
+  const [chatMessages, setChatMessages] = useState([]);
+  const myId = authUser ? authUser.uid : null;
+  const myName = authUser ? (authUser.displayName || 'Anonymous') : '';
+
+  // Listen to rooms
+  useEffect(() => {
+    if (!firebaseDb) return;
+    const ref = firebaseDb.ref('rooms');
+    const onVal = ref.on('value', snap => setRooms(snap.val() || {}));
+    return () => ref.off('value', onVal);
+  }, []);
+
+  // Listen to chat in active room
+  useEffect(() => {
+    if (!firebaseDb || !activeRoom) { setChatMessages([]); return; }
+    const ref = firebaseDb.ref('rooms/' + activeRoom + '/chat').orderByChild('timestamp').limitToLast(50);
+    const onVal = ref.on('value', snap => {
+      const data = snap.val() || {};
+      setChatMessages(Object.entries(data).map(([k, v]) => ({id: k, ...v})).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)));
+    });
+    return () => ref.off('value', onVal);
+  }, [activeRoom]);
+
+  const createRoom = () => {
+    if (!newRoomName.trim() || !firebaseDb) return;
+    const roomId = 'room_' + Date.now();
+    firebaseDb.ref('rooms/' + roomId).set({
+      name: newRoomName.trim(),
+      createdBy: myName,
+      createdAt: firebase.database.ServerValue.TIMESTAMP,
+      members: {[myId]: {name: myName, joinedAt: firebase.database.ServerValue.TIMESTAMP}}
+    });
+    setNewRoomName('');
+    setActiveRoom(roomId);
+  };
+
+  const joinRoom = (roomId) => {
+    if (!firebaseDb || !myId) return;
+    firebaseDb.ref('rooms/' + roomId + '/members/' + myId).set({name: myName, joinedAt: firebase.database.ServerValue.TIMESTAMP});
+    setActiveRoom(roomId);
+  };
+
+  const leaveRoom = (roomId) => {
+    if (!firebaseDb || !myId) return;
+    firebaseDb.ref('rooms/' + roomId + '/members/' + myId).remove();
+    if (activeRoom === roomId) setActiveRoom(null);
+  };
+
+  const sendChat = () => {
+    if (!chatMsg.trim() || !firebaseDb || !activeRoom) return;
+    firebaseDb.ref('rooms/' + activeRoom + '/chat').push({
+      uid: myId, username: myName, text: chatMsg.trim(),
+      timestamp: firebase.database.ServerValue.TIMESTAMP
+    });
+    setChatMsg('');
+  };
+
+  const roomList = Object.entries(rooms).map(([id, r]) => ({id, ...r}));
+  const activeRoomData = activeRoom ? rooms[activeRoom] : null;
+  const activeMembers = activeRoomData ? Object.entries(activeRoomData.members || {}).map(([uid, m]) => ({uid, ...m})) : [];
+
+  const timeAgo = (ts) => {
+    if (!ts) return '';
+    const mins = Math.floor((Date.now() - ts) / 60000);
+    if (mins < 1) return 'now';
+    if (mins < 60) return mins + 'm';
+    return Math.floor(mins / 60) + 'h';
+  };
+
+  // Active room view
+  if (activeRoom && activeRoomData) {
+    return React.createElement('div', null,
+      React.createElement('div', {style:{display:'flex', alignItems:'center', gap:12, marginBottom:16}},
+        React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>setActiveRoom(null)}, '\u2190 Back'),
+        React.createElement('h2', {style:{flex:1}}, activeRoomData.name),
+        React.createElement('span', {style:{fontSize:'0.85rem', color:'var(--green)'}}, activeMembers.length + ' in room')
+      ),
+      // Members
+      React.createElement('div', {style:{display:'flex', gap:8, flexWrap:'wrap', marginBottom:16}},
+        activeMembers.map(m =>
+          React.createElement('span', {key:m.uid, style:{padding:'4px 12px', borderRadius:20, background: m.uid === myId ? 'rgba(59,130,246,0.2)' : 'var(--surface)', fontSize:'0.85rem', color: m.uid === myId ? 'var(--accent)' : 'var(--text2)'}},
+            m.name + (m.uid === myId ? ' (you)' : '')
+          )
+        )
+      ),
+      // Chat
+      React.createElement('div', {style:{background:'var(--surface)', borderRadius:12, border:'1px solid var(--surface2)', height:300, overflowY:'auto', padding:12, marginBottom:12, display:'flex', flexDirection:'column', gap:6}},
+        chatMessages.length === 0
+          ? React.createElement('div', {style:{color:'var(--text3)', textAlign:'center', padding:40}}, 'No messages yet. Say hi!')
+          : chatMessages.map(m =>
+              React.createElement('div', {key:m.id, style:{display:'flex', gap:8, alignItems:'flex-start'}},
+                React.createElement('strong', {style:{color: m.uid === myId ? 'var(--accent)' : 'var(--accent2)', fontSize:'0.85rem', whiteSpace:'nowrap'}}, m.username),
+                React.createElement('span', {style:{fontSize:'0.88rem', color:'var(--text)'}}, m.text),
+                React.createElement('span', {style:{marginLeft:'auto', fontSize:'0.7rem', color:'var(--text3)', whiteSpace:'nowrap'}}, timeAgo(m.timestamp))
+              )
+            )
+      ),
+      // Chat input
+      React.createElement('div', {style:{display:'flex', gap:8}},
+        React.createElement('input', {type:'text', placeholder:'Type a message...', value:chatMsg, style:{flex:1},
+          onChange:e=>setChatMsg(e.target.value), onKeyDown:e=>{ if (e.key === 'Enter') sendChat(); }}),
+        React.createElement('button', {className:'btn btn-primary', onClick:sendChat, disabled:!chatMsg.trim()}, 'Send')
+      ),
+      React.createElement('button', {className:'btn btn-outline btn-sm', style:{marginTop:12, color:'var(--red)', borderColor:'var(--red)'}, onClick:()=>leaveRoom(activeRoom)}, 'Leave Room')
+    );
+  }
+
+  // Room list view
+  return React.createElement('div', null,
+    React.createElement('h2', {style:{marginBottom:4}}, '\uD83D\uDC65 Study Rooms'),
+    React.createElement('p', {style:{color:'var(--text2)', fontSize:'0.9rem', marginBottom:16}}, 'Study with classmates. Join a room or create your own.'),
+
+    // Create room
+    React.createElement('div', {style:{display:'flex', gap:8, marginBottom:20}},
+      React.createElement('input', {type:'text', placeholder:'New room name...', value:newRoomName, maxLength:30,
+        style:{flex:1}, onChange:e=>setNewRoomName(e.target.value), onKeyDown:e=>{ if (e.key === 'Enter') createRoom(); }}),
+      React.createElement('button', {className:'btn btn-primary', onClick:createRoom, disabled:!newRoomName.trim()}, '+ Create')
+    ),
+
+    // Room list
+    roomList.length === 0
+      ? React.createElement('div', {style:{textAlign:'center', padding:40, color:'var(--text3)'}}, 'No rooms yet. Create one to get started!')
+      : roomList.map(room => {
+          const members = Object.entries(room.members || {}).map(([uid, m]) => ({uid, ...m}));
+          const isMember = members.some(m => m.uid === myId);
+          return React.createElement('div', {key:room.id, className:'card', style:{display:'flex', alignItems:'center', gap:12, cursor:'pointer'}, onClick:()=>isMember ? setActiveRoom(room.id) : joinRoom(room.id)},
+            React.createElement('div', {style:{flex:1}},
+              React.createElement('div', {style:{fontWeight:700, fontSize:'1.05rem', marginBottom:4}}, room.name),
+              React.createElement('div', {style:{fontSize:'0.85rem', color:'var(--text3)'}},
+                members.length + ' ' + (members.length === 1 ? 'person' : 'people') + ' \u2022 Created by ' + (room.createdBy || 'Unknown')
+              ),
+              React.createElement('div', {style:{display:'flex', gap:6, marginTop:6, flexWrap:'wrap'}},
+                members.slice(0, 5).map(m =>
+                  React.createElement('span', {key:m.uid, style:{fontSize:'0.75rem', padding:'2px 8px', borderRadius:12, background:'var(--surface2)', color:'var(--text2)'}}, m.name)
+                ),
+                members.length > 5 && React.createElement('span', {style:{fontSize:'0.75rem', color:'var(--text3)'}}, '+' + (members.length - 5) + ' more')
+              )
+            ),
+            React.createElement('span', {style:{fontSize:'0.85rem', color: isMember ? 'var(--green)' : 'var(--accent)', fontWeight:600}},
+              isMember ? 'Open' : 'Join'
+            )
+          );
+        })
+  );
+}
+
+// ============================
+// FLASHCARD SYSTEM
+// ============================
+function FlashcardHub({ progress, setProgress }) {
+  const [decks, setDecks] = useState(progress.flashcardDecks || []);
+  const [view, setView] = useState('list'); // 'list' | 'create' | 'import' | 'study'
+  const [activeDeckIdx, setActiveDeckIdx] = useState(null);
+  const [editDeck, setEditDeck] = useState({name:'', description:'', cards:[]});
+  const [importText, setImportText] = useState('');
+  const [importName, setImportName] = useState('');
+
+  // Persist decks to progress
+  const saveDecks = (newDecks) => {
+    setDecks(newDecks);
+    setProgress(p => ({...p, flashcardDecks: newDecks}));
+  };
+
+  // CREATE DECK
+  const addCard = () => setEditDeck(d => ({...d, cards:[...d.cards, {term:'', definition:''}]}));
+  const updateCard = (i, field, val) => setEditDeck(d => {
+    const cards = [...d.cards];
+    cards[i] = {...cards[i], [field]: val};
+    return {...d, cards};
+  });
+  const removeCard = (i) => setEditDeck(d => ({...d, cards: d.cards.filter((_, idx) => idx !== i)}));
+
+  const saveDeck = () => {
+    if (!editDeck.name.trim() || editDeck.cards.length === 0) return;
+    const validCards = editDeck.cards.filter(c => c.term.trim() && c.definition.trim());
+    if (validCards.length === 0) return;
+    const deck = {
+      id: 'deck_' + Date.now(),
+      name: editDeck.name.trim(),
+      description: editDeck.description.trim(),
+      cards: validCards,
+      createdAt: Date.now(),
+      studied: 0
+    };
+    saveDecks([...decks, deck]);
+    setEditDeck({name:'', description:'', cards:[]});
+    setView('list');
+  };
+
+  // IMPORT
+  const handleImport = () => {
+    if (!importText.trim()) return;
+    const lines = importText.trim().split('\n').filter(l => l.trim());
+    const cards = [];
+    for (const line of lines) {
+      // Try tab-separated first (Quizlet export), then semicolon, then comma
+      let parts = line.split('\t');
+      if (parts.length < 2) parts = line.split(';');
+      if (parts.length < 2) parts = line.split(',');
+      if (parts.length >= 2) {
+        cards.push({term: parts[0].trim(), definition: parts.slice(1).join(',').trim()});
+      }
+    }
+    if (cards.length === 0) return;
+    const deck = {
+      id: 'deck_' + Date.now(),
+      name: importName.trim() || 'Imported Deck',
+      description: 'Imported ' + cards.length + ' cards',
+      cards,
+      createdAt: Date.now(),
+      studied: 0
+    };
+    saveDecks([...decks, deck]);
+    setImportText('');
+    setImportName('');
+    setView('list');
+  };
+
+  const deleteDeck = (idx) => {
+    if (!confirm('Delete this deck and all its cards?')) return;
+    saveDecks(decks.filter((_, i) => i !== idx));
+  };
+
+  // STUDY MODE
+  if (view === 'study' && activeDeckIdx !== null && decks[activeDeckIdx]) {
+    return React.createElement(FlashcardStudy, {
+      deck: decks[activeDeckIdx],
+      onBack: () => { setView('list'); setActiveDeckIdx(null); },
+      onComplete: () => {
+        const updated = [...decks];
+        updated[activeDeckIdx] = {...updated[activeDeckIdx], studied: (updated[activeDeckIdx].studied || 0) + 1, lastStudied: Date.now()};
+        saveDecks(updated);
+        setView('list');
+        setActiveDeckIdx(null);
+      }
+    });
+  }
+
+  // CREATE VIEW
+  if (view === 'create') {
+    return React.createElement('div', null,
+      React.createElement('div', {style:{display:'flex', alignItems:'center', gap:12, marginBottom:16}},
+        React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>setView('list')}, '\u2190 Back'),
+        React.createElement('h2', null, 'Create Deck')
+      ),
+      React.createElement('input', {type:'text', placeholder:'Deck name', value:editDeck.name, maxLength:50, style:{marginBottom:8},
+        onChange:e=>setEditDeck(d=>({...d, name:e.target.value}))}),
+      React.createElement('input', {type:'text', placeholder:'Description (optional)', value:editDeck.description, maxLength:100, style:{marginBottom:16},
+        onChange:e=>setEditDeck(d=>({...d, description:e.target.value}))}),
+      editDeck.cards.map((c, i) =>
+        React.createElement('div', {key:i, style:{display:'flex', gap:8, marginBottom:8, alignItems:'center'}},
+          React.createElement('input', {type:'text', placeholder:'Term', value:c.term, style:{flex:1},
+            onChange:e=>updateCard(i, 'term', e.target.value)}),
+          React.createElement('input', {type:'text', placeholder:'Definition', value:c.definition, style:{flex:2},
+            onChange:e=>updateCard(i, 'definition', e.target.value)}),
+          React.createElement('button', {className:'btn btn-outline btn-sm', style:{color:'var(--red)', padding:'6px 10px'}, onClick:()=>removeCard(i)}, '\u2715')
+        )
+      ),
+      React.createElement('div', {style:{display:'flex', gap:8, marginTop:8}},
+        React.createElement('button', {className:'btn btn-outline', onClick:addCard}, '+ Add Card'),
+        editDeck.cards.length > 0 && React.createElement('button', {className:'btn btn-primary', onClick:saveDeck}, 'Save Deck (' + editDeck.cards.filter(c=>c.term.trim()&&c.definition.trim()).length + ' cards)')
+      )
+    );
+  }
+
+  // IMPORT VIEW
+  if (view === 'import') {
+    return React.createElement('div', null,
+      React.createElement('div', {style:{display:'flex', alignItems:'center', gap:12, marginBottom:16}},
+        React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>setView('list')}, '\u2190 Back'),
+        React.createElement('h2', null, 'Import Flashcards')
+      ),
+      React.createElement('p', {style:{color:'var(--text2)', fontSize:'0.9rem', marginBottom:12}}, 'Paste exported data from Quizlet (tab-separated) or Anki (semicolon/comma-separated). One card per line: term[tab]definition'),
+      React.createElement('input', {type:'text', placeholder:'Deck name', value:importName, maxLength:50, style:{marginBottom:8},
+        onChange:e=>setImportName(e.target.value)}),
+      React.createElement('textarea', {placeholder:'Paste your cards here...\nterm1\\tdefinition1\nterm2\\tdefinition2', value:importText,
+        style:{width:'100%', minHeight:200, padding:12, background:'var(--bg)', border:'2px solid var(--surface2)', borderRadius:8, color:'var(--text)', fontSize:'0.9rem', fontFamily:'monospace', resize:'vertical'},
+        onChange:e=>setImportText(e.target.value)}),
+      React.createElement('div', {style:{marginTop:8, fontSize:'0.85rem', color:'var(--text3)'}},
+        importText.trim() ? importText.trim().split('\n').filter(l=>l.trim()).length + ' lines detected' : 'Supports: Quizlet export, Anki export, any tab/semicolon/comma separated format'
+      ),
+      React.createElement('button', {className:'btn btn-primary', style:{marginTop:12}, onClick:handleImport,
+        disabled:!importText.trim()}, 'Import Cards')
+    );
+  }
+
+  // DECK LIST VIEW
+  return React.createElement('div', null,
+    React.createElement('h2', {style:{marginBottom:4}}, '\uD83D\uDCDD Flashcards'),
+    React.createElement('p', {style:{color:'var(--text2)', fontSize:'0.9rem', marginBottom:16}}, 'Create your own decks or import from Quizlet/Anki.'),
+    React.createElement('div', {style:{display:'flex', gap:8, marginBottom:20}},
+      React.createElement('button', {className:'btn btn-primary', onClick:()=>{setEditDeck({name:'',description:'',cards:[{term:'',definition:''}]}); setView('create');}}, '+ Create Deck'),
+      React.createElement('button', {className:'btn btn-outline', onClick:()=>setView('import')}, '\u2B07 Import')
+    ),
+    decks.length === 0
+      ? React.createElement('div', {style:{textAlign:'center', padding:40, color:'var(--text3)'}},
+          React.createElement('div', {style:{fontSize:'2rem', marginBottom:8}}, '\uD83D\uDCDD'),
+          'No decks yet. Create one or import from Quizlet!'
+        )
+      : decks.map((deck, i) =>
+          React.createElement('div', {key:deck.id, className:'card', style:{display:'flex', alignItems:'center', gap:12, cursor:'pointer'}, onClick:()=>{setActiveDeckIdx(i); setView('study');}},
+            React.createElement('div', {style:{flex:1}},
+              React.createElement('div', {style:{fontWeight:700, fontSize:'1.05rem', marginBottom:2}}, deck.name),
+              React.createElement('div', {style:{fontSize:'0.85rem', color:'var(--text3)'}},
+                deck.cards.length + ' cards \u2022 Studied ' + (deck.studied || 0) + 'x' +
+                (deck.lastStudied ? ' \u2022 Last: ' + new Date(deck.lastStudied).toLocaleDateString() : '')
+              ),
+              deck.description && React.createElement('div', {style:{fontSize:'0.8rem', color:'var(--text3)', marginTop:2}}, deck.description)
+            ),
+            React.createElement('button', {className:'btn btn-outline btn-sm', style:{color:'var(--red)'}, onClick:e=>{e.stopPropagation(); deleteDeck(i);}}, '\uD83D\uDDD1\uFE0F')
+          )
+        )
+  );
+}
+
+function FlashcardStudy({ deck, onBack, onComplete }) {
+  const [idx, setIdx] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [known, setKnown] = useState([]);
+  const [unknown, setUnknown] = useState([]);
+  const cards = deck.cards;
+  const current = cards[idx];
+
+  if (idx >= cards.length) {
+    // Summary
+    return React.createElement('div', {style:{textAlign:'center', padding:40}},
+      React.createElement('div', {style:{fontSize:'3rem', marginBottom:12}}, '\uD83C\uDF89'),
+      React.createElement('h2', null, 'Deck Complete!'),
+      React.createElement('p', {style:{color:'var(--text2)', marginTop:8, marginBottom:16}}, deck.name + ' \u2022 ' + cards.length + ' cards'),
+      React.createElement('div', {style:{display:'flex', justifyContent:'center', gap:24, marginBottom:24}},
+        React.createElement('div', {style:{textAlign:'center'}},
+          React.createElement('div', {style:{fontSize:'2rem', fontWeight:700, color:'var(--green)'}}, known.length),
+          React.createElement('div', {style:{fontSize:'0.85rem', color:'var(--text3)'}}, 'Knew it')
+        ),
+        React.createElement('div', {style:{textAlign:'center'}},
+          React.createElement('div', {style:{fontSize:'2rem', fontWeight:700, color:'var(--red)'}}, unknown.length),
+          React.createElement('div', {style:{fontSize:'0.85rem', color:'var(--text3)'}}, 'Review again')
+        )
+      ),
+      React.createElement('div', {style:{display:'flex', gap:8, justifyContent:'center'}},
+        unknown.length > 0 && React.createElement('button', {className:'btn btn-outline', onClick:()=>{setIdx(0); setFlipped(false); setKnown([]); setUnknown([]);}}, 'Study Again'),
+        React.createElement('button', {className:'btn btn-primary', onClick:onComplete}, 'Done')
+      )
+    );
+  }
+
+  const markKnown = () => { setKnown(k=>[...k, idx]); setFlipped(false); setIdx(i=>i+1); };
+  const markUnknown = () => { setUnknown(k=>[...k, idx]); setFlipped(false); setIdx(i=>i+1); };
+
+  return React.createElement('div', null,
+    React.createElement('div', {style:{display:'flex', alignItems:'center', gap:12, marginBottom:16}},
+      React.createElement('button', {className:'btn btn-outline btn-sm', onClick:onBack}, '\u2190 Back'),
+      React.createElement('h2', {style:{flex:1}}, deck.name),
+      React.createElement('span', {style:{color:'var(--text3)', fontSize:'0.9rem'}}, (idx + 1) + ' / ' + cards.length)
+    ),
+    // Progress bar
+    React.createElement('div', {style:{height:4, background:'var(--surface2)', borderRadius:2, marginBottom:20, overflow:'hidden'}},
+      React.createElement('div', {style:{height:'100%', width:Math.round((idx / cards.length) * 100) + '%', background:'linear-gradient(90deg, var(--accent), var(--green))', transition:'width 0.3s'}})
+    ),
+    // Card
+    React.createElement('div', {onClick:()=>setFlipped(f=>!f), style:{background:'var(--surface)', borderRadius:16, padding:40, minHeight:200, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', border:'2px solid ' + (flipped ? 'var(--green)' : 'var(--surface2)'), textAlign:'center', transition:'border-color 0.2s'}},
+      React.createElement('div', null,
+        React.createElement('div', {style:{fontSize:'0.75rem', color:'var(--text3)', marginBottom:8, textTransform:'uppercase', letterSpacing:1}}, flipped ? 'Definition' : 'Term'),
+        React.createElement('div', {style:{fontSize: flipped ? '1.1rem' : '1.4rem', fontWeight: flipped ? 400 : 700, color: flipped ? 'var(--text2)' : 'var(--text)', lineHeight:1.5}},
+          flipped ? current.definition : current.term
+        ),
+        !flipped && React.createElement('div', {style:{fontSize:'0.8rem', color:'var(--text3)', marginTop:12}}, 'Tap to reveal')
+      )
+    ),
+    // Actions
+    flipped && React.createElement('div', {style:{display:'flex', gap:12, justifyContent:'center', marginTop:20}},
+      React.createElement('button', {className:'btn', style:{background:'rgba(239,68,68,0.15)', color:'var(--red)', padding:'12px 32px', fontSize:'1rem'}, onClick:markUnknown}, '\u274C Don\'t know'),
+      React.createElement('button', {className:'btn', style:{background:'rgba(34,197,94,0.15)', color:'var(--green)', padding:'12px 32px', fontSize:'1rem'}, onClick:markKnown}, '\u2705 Got it')
+    )
+  );
+}
+
+// ============================
+// LEADERBOARD
+// ============================
+function Leaderboard({ authUser }) {
+  const [board, setBoard] = useState([]);
+  const [sortBy, setSortBy] = useState('accuracy'); // 'accuracy' | 'streak' | 'questions'
+  const myId = authUser ? authUser.uid : null;
+
+  useEffect(() => {
+    if (!firebaseDb) return;
+    firebaseDb.ref('userStats').once('value', snap => {
+      const data = snap.val() || {};
+      setBoard(Object.entries(data).map(([uid, s]) => ({uid, ...s})));
+    });
+  }, []);
+
+  const sorted = [...board].filter(u => (u.totalAttempts || 0) > 0).sort((a, b) => {
+    if (sortBy === 'accuracy') return (b.accuracy || 0) - (a.accuracy || 0);
+    if (sortBy === 'streak') return (b.studyStreak || 0) - (a.studyStreak || 0);
+    return (b.questionsAttempted || 0) - (a.questionsAttempted || 0);
+  });
+
+  const medals = ['\uD83E\uDD47', '\uD83E\uDD48', '\uD83E\uDD49'];
+
+  return React.createElement('div', null,
+    React.createElement('h2', {style:{marginBottom:4}}, '\uD83C\uDFC6 Leaderboard'),
+    React.createElement('p', {style:{color:'var(--text2)', fontSize:'0.9rem', marginBottom:16}}, 'See how you stack up against your classmates.'),
+    React.createElement('div', {style:{display:'flex', gap:8, marginBottom:16}},
+      ['accuracy', 'streak', 'questions'].map(s =>
+        React.createElement('button', {key:s, className:'btn ' + (sortBy===s ? 'btn-primary' : 'btn-outline') + ' btn-sm',
+          onClick:()=>setSortBy(s)},
+          s === 'accuracy' ? '\uD83C\uDFAF Accuracy' : s === 'streak' ? '\uD83D\uDD25 Streak' : '\uD83D\uDCDA Questions'
+        )
+      )
+    ),
+    sorted.length === 0
+      ? React.createElement('div', {style:{textAlign:'center', padding:40, color:'var(--text3)'}}, 'No data yet. Start studying to appear on the leaderboard!')
+      : sorted.map((u, i) => {
+          const isMe = u.uid === myId;
+          return React.createElement('div', {key:u.uid, style:{display:'flex', alignItems:'center', gap:12, padding:'12px 16px', background: isMe ? 'rgba(59,130,246,0.1)' : (i % 2 === 0 ? 'var(--surface)' : 'transparent'), borderRadius:10, marginBottom:4}},
+            React.createElement('span', {style:{width:30, textAlign:'center', fontSize: i < 3 ? '1.2rem' : '0.9rem', fontWeight:700, color:'var(--text3)'}}, i < 3 ? medals[i] : (i + 1)),
+            React.createElement('div', {style:{flex:1}},
+              React.createElement('div', {style:{fontWeight:600, color: isMe ? 'var(--accent)' : 'var(--text)'}}, (u.username || 'Anonymous') + (isMe ? ' (you)' : '')),
+              React.createElement('div', {style:{fontSize:'0.8rem', color:'var(--text3)'}},
+                (u.questionsAttempted || 0) + ' questions \u2022 ' + (u.testsCompleted || 0) + ' tests'
+              )
+            ),
+            React.createElement('div', {style:{textAlign:'right'}},
+              React.createElement('div', {style:{fontWeight:700, fontSize:'1.1rem', color:
+                sortBy === 'accuracy' ? ((u.accuracy||0) >= 80 ? 'var(--green)' : (u.accuracy||0) >= 60 ? '#f59e0b' : 'var(--red)') :
+                sortBy === 'streak' ? 'var(--accent2)' : 'var(--accent)'}},
+                sortBy === 'accuracy' ? (u.accuracy||0) + '%' : sortBy === 'streak' ? (u.studyStreak||0) + 'd' : (u.questionsAttempted||0)
+              ),
+              React.createElement('div', {style:{fontSize:'0.7rem', color:'var(--text3)'}},
+                sortBy === 'accuracy' ? 'accuracy' : sortBy === 'streak' ? 'streak' : 'attempted'
+              )
+            )
+          );
+        })
+  );
+}
+
 function HomeScreen({ onNav, progress }) {
   const stats = progress.questionStats || {};
   const totalAttempts = Object.values(stats).reduce((a, s) => a + s.attempts, 0);
@@ -1539,6 +2100,9 @@ function HomeScreen({ onNav, progress }) {
         React.createElement('div', {className:'stat-label'}, 'To Review')
       )
     ),
+    // Activity feed
+    React.createElement(ActivityFeed),
+
     React.createElement('div', {className:'home-grid'},
       modes.map(m => React.createElement('div', {key:m.id, className:'home-card', onClick:() => onNav(m.id)},
         React.createElement('div', {className:'home-icon'}, m.icon),
@@ -5487,20 +6051,54 @@ function usePresence(authUser, firebaseReady, currentPage, isAdmin) {
 }
 
 // ============================
-// PROGRESS SYNC HOOK — pushes study stats to Firebase
+// PROGRESS SYNC HOOK — bidirectional cloud sync
 // ============================
-function useProgressSync(progress, authUser, firebaseReady) {
-  const syncedRef = useRef(false);
+function useProgressSync(progress, setProgress, authUser, firebaseReady) {
   const timerRef = useRef(null);
+  const loadedRef = useRef(false);
+  const skipNextUpload = useRef(false);
 
+  // LOAD: On first auth, pull progress from Firebase and merge with local
+  useEffect(() => {
+    if (!firebaseReady || !firebaseDb || !authUser || loadedRef.current) return;
+    loadedRef.current = true;
+
+    firebaseDb.ref('userProgress/' + authUser.uid).once('value', snap => {
+      const cloud = snap.val();
+      if (!cloud) return; // no cloud data, keep local
+      try {
+        const cloudProgress = JSON.parse(cloud.data || '{}');
+        const cloudTime = cloud.lastSync || 0;
+        const localTime = progress._lastSync || 0;
+        // Merge: cloud wins if newer, otherwise keep local
+        if (cloudTime > localTime) {
+          skipNextUpload.current = true; // don't re-upload what we just downloaded
+          setProgress(prev => ({...prev, ...cloudProgress, _lastSync: cloudTime}));
+        }
+      } catch(e) { console.warn('Cloud progress parse error:', e); }
+    });
+  }, [authUser, firebaseReady]);
+
+  // SAVE: Debounced upload of progress + stats summary
   useEffect(() => {
     if (!firebaseReady || !firebaseDb || !authUser) return;
-    const myId = authUser.uid;
-    const username = authUser.displayName || 'Anonymous';
+    if (skipNextUpload.current) { skipNextUpload.current = false; return; }
 
-    // Debounce: sync 3s after last progress change
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
+      const myId = authUser.uid;
+      const username = authUser.displayName || 'Anonymous';
+      const now = Date.now();
+
+      // Save full progress data (exclude settings to keep it lean)
+      const toSync = {...progress, _lastSync: now};
+      delete toSync.settings; // don't sync settings to cloud
+      firebaseDb.ref('userProgress/' + myId).set({
+        data: JSON.stringify(toSync),
+        lastSync: now
+      }).catch(() => {});
+
+      // Also update the stats summary for admin panel
       const stats = progress.questionStats || {};
       const totalAttempts = Object.values(stats).reduce((s, q) => s + q.attempts, 0);
       const totalCorrect = Object.values(stats).reduce((s, q) => s + q.correct, 0);
@@ -5511,8 +6109,6 @@ function useProgressSync(progress, authUser, firebaseReady) {
       const avgTestScore = testHistory.length > 0
         ? Math.round(testHistory.reduce((s, t) => s + (t.score || 0), 0) / testHistory.length)
         : null;
-      const missedCount = (progress.missedQuestions || []).length;
-      const completedCount = (progress.completedQuestions || []).length;
 
       firebaseDb.ref('userStats/' + myId).set({
         username,
@@ -5525,10 +6121,10 @@ function useProgressSync(progress, authUser, firebaseReady) {
         avgTestScore,
         lastTestScore: lastTest ? lastTest.score : null,
         lastTestDate: lastTest ? lastTest.date : null,
-        missedCount,
-        completedCount,
+        missedCount: (progress.missedQuestions || []).length,
+        completedCount: (progress.completedQuestions || []).length,
         studyStreak: progress.studyStreak || 0
-      });
+      }).catch(() => {});
     }, 3000);
 
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
@@ -5860,6 +6456,38 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
   const offline = onlineUsers.filter(u => !u.online).sort((a,b) => (b.lastSeen||0) - (a.lastSeen||0));
   const now = Date.now();
 
+  // Load class-wide stats for admin analytics
+  const [classStats, setClassStats] = useState(null);
+  useEffect(() => {
+    if (!firebaseDb) return;
+    firebaseDb.ref('userStats').once('value', snap => {
+      const data = snap.val() || {};
+      const users = Object.values(data);
+      if (users.length === 0) { setClassStats(null); return; }
+      const totalStudents = users.length;
+      const avgAccuracy = Math.round(users.reduce((s, u) => s + (u.accuracy || 0), 0) / totalStudents);
+      const totalQuestions = users.reduce((s, u) => s + (u.totalAttempts || 0), 0);
+      const avgStreak = Math.round(users.reduce((s, u) => s + (u.studyStreak || 0), 0) / totalStudents * 10) / 10;
+      const struggling = users.filter(u => (u.accuracy || 0) < 60 && (u.totalAttempts || 0) > 5);
+      const topStudents = [...users].sort((a, b) => (b.accuracy || 0) - (a.accuracy || 0)).slice(0, 5);
+      setClassStats({totalStudents, avgAccuracy, totalQuestions, avgStreak, struggling, topStudents, allUsers: users});
+    });
+  }, [tab]);
+
+  // CSV Export
+  const exportCSV = () => {
+    if (!classStats) return;
+    const header = 'Username,Accuracy,Questions Attempted,Total Attempts,Tests Completed,Avg Test Score,Missed Count,Study Streak\n';
+    const rows = classStats.allUsers.map(u =>
+      [u.username, u.accuracy || 0, u.questionsAttempted || 0, u.totalAttempts || 0, u.testsCompleted || 0, u.avgTestScore || 0, u.missedCount || 0, u.studyStreak || 0].join(',')
+    ).join('\n');
+    const blob = new Blob([header + rows], {type: 'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'medmaster_class_stats_' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Load visit analytics
   useEffect(() => {
     if (!firebaseDb) return;
@@ -6085,6 +6713,48 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
               '\uD83D\uDCBB Desktop: ' + online.filter(u => u.device !== 'mobile').length),
             React.createElement('div', {style:{background:'var(--surface)', borderRadius:8, padding:'8px 16px', fontSize:'0.85rem'}},
               '\uD83D\uDCF1 Mobile: ' + online.filter(u => u.device === 'mobile').length)
+          )
+        ),
+
+        // Class-wide stats
+        classStats && React.createElement('div', {style:{marginTop:24}},
+          React.createElement('div', {style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}},
+            React.createElement('h4', {style:{fontSize:'0.9rem'}}, '\uD83C\uDFEB Class Overview (' + classStats.totalStudents + ' students)'),
+            React.createElement('button', {className:'btn btn-outline btn-sm', onClick:exportCSV}, '\uD83D\uDCE5 Export CSV')
+          ),
+          React.createElement('div', {style:{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:16}},
+            [{l:'Avg Accuracy', v:classStats.avgAccuracy+'%', c: classStats.avgAccuracy >= 80 ? 'var(--green)' : classStats.avgAccuracy >= 60 ? '#f59e0b' : 'var(--red)'},
+             {l:'Total Questions', v:classStats.totalQuestions, c:'var(--accent)'},
+             {l:'Avg Streak', v:classStats.avgStreak+'d', c:'var(--accent2)'}
+            ].map((s, i) =>
+              React.createElement('div', {key:i, style:{background:'var(--surface)', borderRadius:10, padding:12, textAlign:'center'}},
+                React.createElement('div', {style:{fontSize:'1.3rem', fontWeight:700, color:s.c}}, s.v),
+                React.createElement('div', {style:{fontSize:'0.75rem', color:'var(--text3)', marginTop:2}}, s.l)
+              )
+            )
+          ),
+          // Top students
+          classStats.topStudents.length > 0 && React.createElement('div', {style:{marginBottom:16}},
+            React.createElement('h4', {style:{fontSize:'0.85rem', marginBottom:8}}, '\uD83C\uDFC6 Top Students'),
+            classStats.topStudents.map((u, i) =>
+              React.createElement('div', {key:i, style:{display:'flex', alignItems:'center', gap:10, padding:'6px 0', borderBottom:'1px solid var(--surface2)', fontSize:'0.88rem'}},
+                React.createElement('span', {style:{width:20, textAlign:'center', fontWeight:700, color: i < 3 ? 'var(--green)' : 'var(--text3)'}}, i+1),
+                React.createElement('span', {style:{flex:1, fontWeight:500}}, u.username),
+                React.createElement('span', {style:{color: (u.accuracy||0) >= 80 ? 'var(--green)' : '#f59e0b', fontWeight:600}}, (u.accuracy||0) + '%'),
+                React.createElement('span', {style:{color:'var(--text3)', fontSize:'0.8rem'}}, (u.questionsAttempted||0) + ' Qs')
+              )
+            )
+          ),
+          // Struggling students
+          classStats.struggling.length > 0 && React.createElement('div', null,
+            React.createElement('h4', {style:{fontSize:'0.85rem', marginBottom:8, color:'var(--red)'}}, '\u26A0\uFE0F Needs Attention (' + classStats.struggling.length + ')'),
+            classStats.struggling.map((u, i) =>
+              React.createElement('div', {key:i, style:{display:'flex', alignItems:'center', gap:10, padding:'6px 0', borderBottom:'1px solid var(--surface2)', fontSize:'0.88rem'}},
+                React.createElement('span', {style:{flex:1}}, u.username),
+                React.createElement('span', {style:{color:'var(--red)', fontWeight:600}}, (u.accuracy||0) + '%'),
+                React.createElement('span', {style:{color:'var(--text3)', fontSize:'0.8rem'}}, (u.totalAttempts||0) + ' attempts')
+              )
+            )
           )
         )
       ),
@@ -6328,12 +6998,32 @@ function App() {
   // Hooks only activate when auth user + firebase are ready
   const { onlineUsers, onlineCount, myId } = usePresence(authUser, firebaseReady, page, isAdmin);
   const { messages, sendMessage } = useMessages(firebaseReady);
-  useProgressSync(progress, authUser, firebaseReady);
+  useProgressSync(progress, setProgress, authUser, firebaseReady);
 
-  // Track study streak on load
+  // Track study streak on load + post streak activity
   useEffect(() => {
-    if (authUser) updateStudyStreak(progress, setProgress);
+    if (authUser) {
+      updateStudyStreak(progress, setProgress);
+      // Post streak activity if streak >= 3
+      if (progress.studyStreak >= 3) {
+        postActivity(authUser, 'streak', {days: progress.studyStreak});
+      }
+    }
   }, [authUser]);
+
+  // Auto-post test completions to activity feed
+  const lastTestCountRef = useRef((progress.testHistory || []).length);
+  useEffect(() => {
+    const tests = progress.testHistory || [];
+    if (tests.length > lastTestCountRef.current && authUser) {
+      const latest = tests[tests.length - 1];
+      postActivity(authUser, 'test_score', {
+        score: latest.pct || latest.score || 0,
+        questions: latest.total || 0
+      });
+    }
+    lastTestCountRef.current = tests.length;
+  }, [progress.testHistory]);
 
   const handleAuth = (user) => {
     setAuthUser(user);
@@ -6363,6 +7053,9 @@ function App() {
       case 'pharm': return React.createElement(PharmHub, {progress, setProgress});
       case 'labday': return React.createElement(LabDayTest, {progress, setProgress});
       case 'smart': return React.createElement(SmartStudy, {progress, setProgress});
+      case 'rooms': return React.createElement(StudyRooms, {authUser});
+      case 'flashcards': return React.createElement(FlashcardHub, {progress, setProgress});
+      case 'leaderboard': return React.createElement(Leaderboard, {authUser});
       case 'settings': return React.createElement(SettingsPage, {progress, setProgress, onSignOut: handleSignOut, authUser, isAdmin});
       case 'admin': return isAdmin ? React.createElement(AdminPanel, {onlineUsers, sendMessage, myId}) : React.createElement(HomeScreen, {onNav: setPage, progress});
       default: return React.createElement(HomeScreen, {onNav: setPage, progress});
@@ -6384,38 +7077,84 @@ function App() {
     return React.createElement(AuthScreen, {onAuth: handleAuth});
   }
 
+  // Sidebar state
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const missedCount = (progress.missedQuestions || []).length;
+
+  const navTo = (p) => { setPage(p); setSidebarOpen(false); };
+
+  const sidebarItem = (id, icon, label, badge) =>
+    React.createElement('button', {key:id, className:'sidebar-item' + (page===id ? ' active' : ''), onClick:()=>navTo(id)},
+      React.createElement('span', {className:'si-icon'}, icon),
+      React.createElement('span', {className:'si-label'}, label),
+      badge ? React.createElement('span', {className:'si-badge'}, badge) : null
+    );
+
   return React.createElement('div', {className:'app'},
-    // Toast notifications for admin messages
+    // Toast notifications
     firebaseReady && React.createElement(ToastContainer, {messages, myId}),
 
-    // Online count badge (floating)
-    firebaseReady && onlineCount > 0 && React.createElement('div', {className:'online-count-badge',
-      title: onlineCount + ' user' + (onlineCount !== 1 ? 's' : '') + ' online',
-      onClick: isAdmin ? ()=>setPage('admin') : undefined,
-      style: isAdmin ? {cursor:'pointer'} : {}
-    }, onlineCount + ' \uD83D\uDFE2'),
+    // Mobile hamburger toggle
+    React.createElement('button', {className:'sidebar-toggle', onClick:()=>setSidebarOpen(s=>!s)}, '\u2630'),
 
-    React.createElement('nav', {className:'nav'},
-      React.createElement('div', {className:'nav-brand', onClick:()=>setPage('home'), style:{cursor:'pointer'}}, 'MedMaster'),
-      React.createElement('span', {className:'nav-greeting'}, 'Hi, ' + username),
-      page !== 'home' && React.createElement(React.Fragment, null,
-        React.createElement('button', {className:'nav-btn'+(page==='labday'?' active':''), style:page==='labday'?{background:'var(--red)'}:{background:'rgba(239,68,68,0.15)', color:'var(--red)'}, onClick:()=>setPage('labday')}, '\uD83E\uDDEA Lab Day'),
-        React.createElement('button', {className:'nav-btn'+(page==='learn'?' active':''), onClick:()=>setPage('learn')}, 'Formulas'),
-        React.createElement('button', {className:'nav-btn'+(page==='guided'?' active':''), onClick:()=>setPage('guided')}, 'Guided'),
-        React.createElement('button', {className:'nav-btn'+(page==='challenge'?' active':''), style:page==='challenge'?{background:'linear-gradient(135deg, var(--green), #059669)'}:{}, onClick:()=>setPage('challenge')}, '\uD83C\uDFAF Challenge'),
-        React.createElement('button', {className:'nav-btn'+(page==='test'?' active':''), onClick:()=>setPage('test')}, 'Test'),
-        React.createElement('button', {className:'nav-btn'+(page==='analyze'?' active':''), onClick:()=>setPage('analyze')}, 'Analyzer'),
-        React.createElement('button', {className:'nav-btn'+(page==='pharm'?' active':''), style:page==='pharm'?{background:'var(--accent2)'}:{}, onClick:()=>setPage('pharm')}, '\uD83D\uDC8A Pharm'),
-        React.createElement('button', {className:'nav-btn'+(page==='smart'?' active':''), style:page==='smart'?{background:'linear-gradient(135deg, var(--accent), var(--accent2))'}:{}, onClick:()=>setPage('smart')}, '\uD83E\uDDE0 Smart'),
-        React.createElement('button', {className:'nav-btn'+(page==='dashboard'?' active':''), onClick:()=>setPage('dashboard')}, 'Stats'),
-        React.createElement('button', {className:'nav-btn'+(page==='missed'?' active':''), onClick:()=>setPage('missed')},
-          'Missed', (progress.missedQuestions || []).length > 0 ? ' (' + progress.missedQuestions.length + ')' : ''
-        ),
-        isAdmin && React.createElement('button', {className:'nav-btn'+(page==='admin'?' active':''), style:page==='admin'?{background:'linear-gradient(135deg, #f59e0b, #ef4444)'}:{background:'rgba(245,158,11,0.15)', color:'#f59e0b'}, onClick:()=>setPage('admin')}, '\uD83D\uDD12 Admin'),
-        React.createElement('button', {className:'nav-btn'+(page==='settings'?' active':''), onClick:()=>setPage('settings')}, '\u2699\uFE0F')
+    // Sidebar overlay (mobile)
+    React.createElement('div', {className:'sidebar-overlay' + (sidebarOpen ? ' open' : ''), onClick:()=>setSidebarOpen(false)}),
+
+    // Sidebar
+    React.createElement('aside', {className:'sidebar' + (sidebarOpen ? ' open' : '')},
+      // Brand
+      React.createElement('div', {className:'sidebar-brand'},
+        React.createElement('h1', {onClick:()=>navTo('home')}, '\uD83D\uDC8A MedMaster'),
+        onlineCount > 0 && React.createElement('span', {style:{fontSize:'0.75rem', color:'var(--green)', fontWeight:600}}, onlineCount + ' online')
+      ),
+      React.createElement('div', {className:'sidebar-user'}, 'Hi, ' + username),
+
+      // Nav items
+      React.createElement('div', {className:'sidebar-nav'},
+        React.createElement('div', {className:'sidebar-section'}, 'Study'),
+        sidebarItem('home', '\uD83C\uDFE0', 'Home'),
+        sidebarItem('learn', '\uD83D\uDCD0', 'Formula Lab'),
+        sidebarItem('guided', '\uD83C\uDFAF', 'Guided Practice'),
+        sidebarItem('challenge', '\u26A1', 'Challenge'),
+        sidebarItem('smart', '\uD83E\uDDE0', 'Smart Study'),
+
+        React.createElement('div', {className:'sidebar-section'}, 'Test'),
+        sidebarItem('test', '\uD83D\uDCDD', 'Test Mode'),
+        sidebarItem('labday', '\uD83E\uDDEA', 'Lab Day'),
+        sidebarItem('analyze', '\uD83D\uDD2C', 'Analyzer'),
+
+        React.createElement('div', {className:'sidebar-section'}, 'Review'),
+        sidebarItem('pharm', '\uD83D\uDC8A', 'Pharmacology'),
+        sidebarItem('missed', '\u274C', 'Missed Questions', missedCount > 0 ? missedCount : null),
+        sidebarItem('dashboard', '\uD83D\uDCCA', 'My Stats'),
+
+        React.createElement('div', {className:'sidebar-section'}, 'Tools'),
+        sidebarItem('flashcards', '\uD83D\uDCDD', 'Flashcards'),
+
+        React.createElement('div', {className:'sidebar-section'}, 'Social'),
+        sidebarItem('leaderboard', '\uD83C\uDFC6', 'Leaderboard'),
+        sidebarItem('rooms', '\uD83D\uDC65', 'Study Rooms'),
+
+        isAdmin && React.createElement(React.Fragment, null,
+          React.createElement('div', {className:'sidebar-section'}, 'Admin'),
+          sidebarItem('admin', '\uD83D\uDD12', 'Admin Panel')
+        )
+      ),
+
+      // Bottom section
+      React.createElement('div', {className:'sidebar-bottom'},
+        sidebarItem('settings', '\u2699\uFE0F', 'Settings')
       )
     ),
-    renderPage(),
+
+    // Spacer to push content right of sidebar on desktop
+    React.createElement('div', {className:'sidebar-spacer'}),
+
+    // Main content
+    React.createElement('main', {className:'app-main'},
+      renderPage()
+    ),
+
     React.createElement(Calculator, {show: showCalc, onToggle: () => setShowCalc(s => !s)})
   );
 }
