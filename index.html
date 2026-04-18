@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MedMaster</title>
-<meta name="app-version" content="12">
+<meta name="app-version" content="13">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <!-- Firebase SDK -->
@@ -1613,14 +1613,300 @@ function ActivityFeed() {
 // ============================
 // STUDY ROOMS
 // ============================
+// ============================
+// VOICE CHAT & ENCRYPTION
+// ============================
+
+const RoomCrypto = {
+  async generateRoomKey() {
+    const key = await crypto.subtle.generateKey(
+      { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']
+    );
+    const raw = await crypto.subtle.exportKey('raw', key);
+    return btoa(String.fromCharCode(...new Uint8Array(raw)));
+  },
+
+  async importKey(base64) {
+    const raw = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+  },
+
+  async encrypt(plaintext, keyBase64) {
+    const key = await this.importKey(keyBase64);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const enc = new TextEncoder();
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plaintext));
+    const combined = new Uint8Array(iv.length + ct.byteLength);
+    combined.set(iv, 0);
+    combined.set(new Uint8Array(ct), iv.length);
+    return btoa(String.fromCharCode(...combined));
+  },
+
+  async decrypt(ciphertext64, keyBase64) {
+    try {
+      const key = await this.importKey(keyBase64);
+      const data = Uint8Array.from(atob(ciphertext64), c => c.charCodeAt(0));
+      const iv = data.slice(0, 12);
+      const ct = data.slice(12);
+      const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+      return new TextDecoder().decode(pt);
+    } catch (e) {
+      return '[encrypted]';
+    }
+  }
+};
+
+const ICE_CONFIG = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]
+};
+
+function useVoiceChat(roomId, myId, myName, db) {
+  const [inVoice, setInVoice] = useState(false);
+  const [voiceParticipants, setVoiceParticipants] = useState([]);
+  const [isMuted, setIsMuted] = useState(false);
+  const [audioError, setAudioError] = useState(null);
+
+  const peersRef = useRef({});
+  const streamRef = useRef(null);
+  const audioEls = useRef({});
+  const listenersRef = useRef([]);
+  const mountedRef = useRef(true);
+
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+
+  const bp = useCallback(() => 'rooms/' + roomId + '/voice', [roomId]);
+
+  const cleanup = useCallback(() => {
+    listenersRef.current.forEach(fn => fn());
+    listenersRef.current = [];
+    Object.values(peersRef.current).forEach(pc => pc.close());
+    peersRef.current = {};
+    Object.values(audioEls.current).forEach(el => { el.pause(); el.srcObject = null; el.remove(); });
+    audioEls.current = {};
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+  }, []);
+
+  const addFBListener = useCallback((ref, event, cb) => {
+    ref.on(event, cb);
+    listenersRef.current.push(() => ref.off(event, cb));
+  }, []);
+
+  const createPeer = useCallback((remoteUid, isInitiator) => {
+    if (peersRef.current[remoteUid]) return peersRef.current[remoteUid];
+    const pc = new RTCPeerConnection(ICE_CONFIG);
+    peersRef.current[remoteUid] = pc;
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => pc.addTrack(t, streamRef.current));
+    }
+
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        db.ref(bp() + '/signals/' + myId + '_' + remoteUid).push({
+          type: 'candidate', data: e.candidate.toJSON(), timestamp: Date.now()
+        });
+      }
+    };
+
+    pc.ontrack = (e) => {
+      if (!audioEls.current[remoteUid]) {
+        const el = document.createElement('audio');
+        el.autoplay = true;
+        el.style.display = 'none';
+        document.body.appendChild(el);
+        audioEls.current[remoteUid] = el;
+      }
+      audioEls.current[remoteUid].srcObject = e.streams[0];
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        pc.close();
+        delete peersRef.current[remoteUid];
+        if (audioEls.current[remoteUid]) { audioEls.current[remoteUid].pause(); audioEls.current[remoteUid].remove(); delete audioEls.current[remoteUid]; }
+      }
+    };
+
+    if (isInitiator) {
+      pc.createOffer().then(offer => {
+        pc.setLocalDescription(offer);
+        db.ref(bp() + '/signals/' + myId + '_' + remoteUid).push({
+          type: 'offer', data: offer, timestamp: Date.now()
+        });
+      });
+    }
+
+    const sigRef = db.ref(bp() + '/signals/' + remoteUid + '_' + myId);
+    const onSig = sigRef.on('child_added', async (snap) => {
+      const msg = snap.val();
+      if (!msg || !peersRef.current[remoteUid]) return;
+      const peer = peersRef.current[remoteUid];
+      try {
+        if (msg.type === 'offer') {
+          await peer.setRemoteDescription(new RTCSessionDescription(msg.data));
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+          db.ref(bp() + '/signals/' + myId + '_' + remoteUid).push({
+            type: 'answer', data: answer, timestamp: Date.now()
+          });
+        } else if (msg.type === 'answer') {
+          if (peer.signalingState === 'have-local-offer') {
+            await peer.setRemoteDescription(new RTCSessionDescription(msg.data));
+          }
+        } else if (msg.type === 'candidate') {
+          if (peer.remoteDescription) {
+            await peer.addIceCandidate(new RTCIceCandidate(msg.data));
+          }
+        }
+      } catch (e) { console.warn('Signal error:', e); }
+    });
+    listenersRef.current.push(() => sigRef.off('child_added', onSig));
+    return pc;
+  }, [bp, myId, db]);
+
+  const joinVoice = useCallback(async () => {
+    if (inVoice || !db) return;
+    setAudioError(null);
+    try {
+      streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      setAudioError('Microphone access denied. Check browser permissions.');
+      return;
+    }
+    setInVoice(true);
+    setIsMuted(false);
+
+    const partRef = db.ref(bp() + '/participants/' + myId);
+    partRef.set({ name: myName, joinedAt: Date.now() });
+    partRef.onDisconnect().remove();
+
+    const allPartRef = db.ref(bp() + '/participants');
+    addFBListener(allPartRef, 'value', (snap) => {
+      const val = snap.val() || {};
+      if (mountedRef.current) setVoiceParticipants(Object.entries(val).map(([uid, d]) => ({ uid, name: d.name })));
+    });
+
+    const onAdded = allPartRef.on('child_added', (snap) => {
+      const uid = snap.key;
+      if (uid === myId || peersRef.current[uid]) return;
+      createPeer(uid, myId < uid);
+    });
+    listenersRef.current.push(() => allPartRef.off('child_added', onAdded));
+
+    const onRemoved = allPartRef.on('child_removed', (snap) => {
+      const uid = snap.key;
+      if (peersRef.current[uid]) { peersRef.current[uid].close(); delete peersRef.current[uid]; }
+      if (audioEls.current[uid]) { audioEls.current[uid].pause(); audioEls.current[uid].remove(); delete audioEls.current[uid]; }
+      db.ref(bp() + '/signals/' + uid + '_' + myId).remove();
+      db.ref(bp() + '/signals/' + myId + '_' + uid).remove();
+    });
+    listenersRef.current.push(() => allPartRef.off('child_removed', onRemoved));
+  }, [inVoice, myId, myName, db, bp, addFBListener, createPeer]);
+
+  const leaveVoice = useCallback(() => {
+    if (!inVoice || !db) return;
+    db.ref(bp() + '/participants/' + myId).remove();
+    db.ref(bp() + '/participants/' + myId).onDisconnect().cancel();
+    Object.keys(peersRef.current).forEach(uid => {
+      db.ref(bp() + '/signals/' + myId + '_' + uid).remove();
+      db.ref(bp() + '/signals/' + uid + '_' + myId).remove();
+    });
+    cleanup();
+    setInVoice(false);
+    setVoiceParticipants([]);
+    setIsMuted(false);
+  }, [inVoice, myId, db, bp, cleanup]);
+
+  const toggleMute = useCallback(() => {
+    if (!streamRef.current) return;
+    const newMuted = !isMuted;
+    streamRef.current.getAudioTracks().forEach(t => { t.enabled = !newMuted; });
+    setIsMuted(newMuted);
+  }, [isMuted]);
+
+  useEffect(() => {
+    return () => {
+      if (inVoice && db) {
+        db.ref(bp() + '/participants/' + myId).remove();
+        Object.keys(peersRef.current).forEach(uid => {
+          db.ref(bp() + '/signals/' + myId + '_' + uid).remove();
+          db.ref(bp() + '/signals/' + uid + '_' + myId).remove();
+        });
+      }
+      cleanup();
+    };
+  }, [roomId]);
+
+  return { inVoice, voiceParticipants, isMuted, joinVoice, leaveVoice, toggleMute, audioError };
+}
+
+function VoiceBar(props) {
+  const { inVoice, voiceParticipants, isMuted, onJoin, onLeave, onToggleMute, audioError } = props;
+  const barStyle = {
+    display:'flex', alignItems:'center', gap:10,
+    padding:'10px 14px', background:'var(--surface)',
+    borderRadius:10, marginBottom:10, minHeight:40,
+    border: inVoice ? '1px solid var(--green)' : '1px solid var(--surface2)'
+  };
+  const btnBase = { border:'none', borderRadius:6, padding:'6px 14px', cursor:'pointer', fontWeight:600, fontSize:'0.82rem', display:'flex', alignItems:'center', gap:6 };
+
+  if (audioError) {
+    return ce('div', { style: {...barStyle, border:'1px solid var(--red)'} },
+      ce('span', { style:{color:'var(--red)', fontSize:'0.82rem'} }, '\u26A0 ', audioError),
+      ce('button', { onClick:onJoin, style:{...btnBase, background:'var(--surface2)', color:'var(--text)'} }, 'Retry')
+    );
+  }
+
+  if (!inVoice) {
+    return ce('div', { style:barStyle },
+      ce('button', { onClick:onJoin, style:{...btnBase, background:'var(--accent)', color:'#fff'} },
+        '\uD83C\uDF99\uFE0F', ' Join Voice'
+      ),
+      ce('span', {style:{fontSize:'0.8rem', color:'var(--text3)'}}, 'Talk with your study group')
+    );
+  }
+
+  return ce('div', { style:barStyle },
+    ce('span', { style:{ width:8, height:8, borderRadius:'50%', background:'var(--green)', display:'inline-block', flexShrink:0, animation:'pulse-dot 1.5s ease-in-out infinite' } }),
+    ce('span', { style:{color:'var(--text)', fontSize:'0.82rem', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'},
+      title: voiceParticipants.map(p=>p.name).join(', ')
+    }, voiceParticipants.length + ' in voice \u2014 ' + voiceParticipants.map(p=>p.name).join(', ')),
+    ce('button', { onClick:onToggleMute, style:{...btnBase, background: isMuted ? 'var(--red)' : 'var(--surface2)', color: isMuted ? '#fff' : 'var(--text)'},
+      title: isMuted ? 'Unmute' : 'Mute'
+    }, isMuted ? '\uD83D\uDD07 Muted' : '\uD83C\uDF99\uFE0F Live'),
+    ce('button', { onClick:onLeave, style:{...btnBase, background:'var(--red)', color:'#fff'}, title:'Leave Voice' }, '\u2716 Leave')
+  );
+}
+
+// Inject voice bar pulse animation
+if (!document.getElementById('voice-bar-styles')) {
+  const vbStyle = document.createElement('style');
+  vbStyle.id = 'voice-bar-styles';
+  vbStyle.textContent = '@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}';
+  document.head.appendChild(vbStyle);
+}
+
+// ============================
+// END VOICE CHAT & ENCRYPTION
+// ============================
+
 function StudyRooms({ authUser }) {
   const [rooms, setRooms] = useState({});
   const [newRoomName, setNewRoomName] = useState('');
   const [activeRoom, setActiveRoom] = useState(null);
   const [chatMsg, setChatMsg] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
+  const [roomKey, setRoomKey] = useState(null); // encryption key for active room
+  const [typing, setTyping] = useState({}); // typing indicators
+  const chatEndRef = useRef(null);
   const myId = authUser ? authUser.uid : null;
   const myName = authUser ? (authUser.displayName || 'Anonymous') : '';
+
+  // Voice chat hook
+  const voice = useVoiceChat(activeRoom, myId, myName, firebaseDb);
 
   // Listen to rooms
   useEffect(() => {
@@ -1630,27 +1916,73 @@ function StudyRooms({ authUser }) {
     return () => ref.off('value', onVal);
   }, []);
 
-  // Listen to chat in active room
+  // Load encryption key when entering a room
+  useEffect(() => {
+    if (!firebaseDb || !activeRoom) { setRoomKey(null); return; }
+    const keyRef = firebaseDb.ref('rooms/' + activeRoom + '/encKey');
+    keyRef.once('value').then(snap => {
+      const k = snap.val();
+      if (k) setRoomKey(k);
+    });
+  }, [activeRoom]);
+
+  // Listen to chat in active room (decrypt messages)
   useEffect(() => {
     if (!firebaseDb || !activeRoom) { setChatMessages([]); return; }
     const ref = firebaseDb.ref('rooms/' + activeRoom + '/chat').orderByChild('timestamp').limitToLast(50);
-    const onVal = ref.on('value', snap => {
+    const onVal = ref.on('value', async (snap) => {
       const data = snap.val() || {};
-      setChatMessages(Object.entries(data).map(([k, v]) => ({id: k, ...v})).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)));
+      const msgs = Object.entries(data).map(([k, v]) => ({id: k, ...v})).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      // Decrypt messages if we have the key and messages are encrypted
+      if (roomKey) {
+        for (let m of msgs) {
+          if (m.encrypted && m.text) {
+            m.text = await RoomCrypto.decrypt(m.text, roomKey);
+          }
+        }
+      }
+      setChatMessages(msgs);
     });
+    return () => ref.off('value', onVal);
+  }, [activeRoom, roomKey]);
+
+  // Auto-scroll chat
+  useEffect(() => {
+    if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  // Typing indicator
+  useEffect(() => {
+    if (!firebaseDb || !activeRoom) return;
+    const ref = firebaseDb.ref('rooms/' + activeRoom + '/typing');
+    const onVal = ref.on('value', snap => setTyping(snap.val() || {}));
     return () => ref.off('value', onVal);
   }, [activeRoom]);
 
-  const createRoom = () => {
+  const setMyTyping = useCallback((isTyping) => {
+    if (!firebaseDb || !activeRoom || !myId) return;
+    if (isTyping) {
+      firebaseDb.ref('rooms/' + activeRoom + '/typing/' + myId).set({ name: myName, t: Date.now() });
+      firebaseDb.ref('rooms/' + activeRoom + '/typing/' + myId).onDisconnect().remove();
+    } else {
+      firebaseDb.ref('rooms/' + activeRoom + '/typing/' + myId).remove();
+    }
+  }, [activeRoom, myId, myName]);
+
+  const createRoom = async () => {
     if (!newRoomName.trim() || !firebaseDb) return;
     const roomId = 'room_' + Date.now();
+    // Generate encryption key for the room
+    const encKey = await RoomCrypto.generateRoomKey();
     firebaseDb.ref('rooms/' + roomId).set({
       name: newRoomName.trim(),
       createdBy: myName,
       createdAt: firebase.database.ServerValue.TIMESTAMP,
+      encKey: encKey,
       members: {[myId]: {name: myName, joinedAt: firebase.database.ServerValue.TIMESTAMP}}
     });
     setNewRoomName('');
+    setRoomKey(encKey);
     setActiveRoom(roomId);
   };
 
@@ -1662,17 +1994,31 @@ function StudyRooms({ authUser }) {
 
   const leaveRoom = (roomId) => {
     if (!firebaseDb || !myId) return;
+    // Leave voice first if in it
+    if (voice.inVoice) voice.leaveVoice();
     firebaseDb.ref('rooms/' + roomId + '/members/' + myId).remove();
-    if (activeRoom === roomId) setActiveRoom(null);
+    firebaseDb.ref('rooms/' + roomId + '/typing/' + myId).remove();
+    if (activeRoom === roomId) { setActiveRoom(null); setRoomKey(null); }
   };
 
-  const sendChat = () => {
+  const sendChat = async () => {
     if (!chatMsg.trim() || !firebaseDb || !activeRoom) return;
-    firebaseDb.ref('rooms/' + activeRoom + '/chat').push({
-      uid: myId, username: myName, text: chatMsg.trim(),
-      timestamp: firebase.database.ServerValue.TIMESTAMP
-    });
+    setMyTyping(false);
+    const msgText = chatMsg.trim();
     setChatMsg('');
+    // Encrypt if we have a room key
+    if (roomKey) {
+      const encrypted = await RoomCrypto.encrypt(msgText, roomKey);
+      firebaseDb.ref('rooms/' + activeRoom + '/chat').push({
+        uid: myId, username: myName, text: encrypted, encrypted: true,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+      });
+    } else {
+      firebaseDb.ref('rooms/' + activeRoom + '/chat').push({
+        uid: myId, username: myName, text: msgText,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+      });
+    }
   };
 
   const roomList = Object.entries(rooms).map(([id, r]) => ({id, ...r}));
@@ -1687,40 +2033,70 @@ function StudyRooms({ authUser }) {
     return Math.floor(mins / 60) + 'h';
   };
 
+  // Typing indicator text
+  const typingUsers = Object.entries(typing).filter(([uid]) => uid !== myId).map(([uid, d]) => d.name);
+  const typingText = typingUsers.length === 0 ? null : typingUsers.length === 1 ? typingUsers[0] + ' is typing...' : typingUsers.slice(0, 2).join(', ') + ' are typing...';
+
   // Active room view
   if (activeRoom && activeRoomData) {
     return React.createElement('div', null,
-      React.createElement('div', {style:{display:'flex', alignItems:'center', gap:12, marginBottom:16}},
-        React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>setActiveRoom(null)}, '\u2190 Back'),
-        React.createElement('h2', {style:{flex:1}}, activeRoomData.name),
+      React.createElement('div', {style:{display:'flex', alignItems:'center', gap:12, marginBottom:12}},
+        React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>{if(voice.inVoice) voice.leaveVoice(); setActiveRoom(null);}}, '\u2190 Back'),
+        React.createElement('h2', {style:{flex:1, margin:0}}, activeRoomData.name),
+        roomKey && React.createElement('span', {style:{fontSize:'0.75rem', color:'var(--green)', display:'flex', alignItems:'center', gap:4}}, '\uD83D\uDD12 Encrypted'),
         React.createElement('span', {style:{fontSize:'0.85rem', color:'var(--green)'}}, activeMembers.length + ' in room')
       ),
+
+      // Voice bar
+      React.createElement(VoiceBar, {
+        inVoice: voice.inVoice,
+        voiceParticipants: voice.voiceParticipants,
+        isMuted: voice.isMuted,
+        onJoin: voice.joinVoice,
+        onLeave: voice.leaveVoice,
+        onToggleMute: voice.toggleMute,
+        audioError: voice.audioError
+      }),
+
       // Members
-      React.createElement('div', {style:{display:'flex', gap:8, flexWrap:'wrap', marginBottom:16}},
-        activeMembers.map(m =>
-          React.createElement('span', {key:m.uid, style:{padding:'4px 12px', borderRadius:20, background: m.uid === myId ? 'rgba(59,130,246,0.2)' : 'var(--surface)', fontSize:'0.85rem', color: m.uid === myId ? 'var(--accent)' : 'var(--text2)'}},
+      React.createElement('div', {style:{display:'flex', gap:8, flexWrap:'wrap', marginBottom:12}},
+        activeMembers.map(m => {
+          const isInVoice = voice.voiceParticipants.some(v => v.uid === m.uid);
+          return React.createElement('span', {key:m.uid, style:{padding:'4px 12px', borderRadius:20, background: m.uid === myId ? 'rgba(59,130,246,0.2)' : 'var(--surface)', fontSize:'0.85rem', color: m.uid === myId ? 'var(--accent)' : 'var(--text2)', display:'flex', alignItems:'center', gap:4}},
+            isInVoice && React.createElement('span', {style:{fontSize:'0.7rem'}}, '\uD83C\uDF99\uFE0F'),
             m.name + (m.uid === myId ? ' (you)' : '')
-          )
-        )
+          );
+        })
       ),
+
       // Chat
-      React.createElement('div', {style:{background:'var(--surface)', borderRadius:12, border:'1px solid var(--surface2)', height:300, overflowY:'auto', padding:12, marginBottom:12, display:'flex', flexDirection:'column', gap:6}},
+      React.createElement('div', {style:{background:'var(--surface)', borderRadius:12, border:'1px solid var(--surface2)', height:320, overflowY:'auto', padding:12, marginBottom:8, display:'flex', flexDirection:'column', gap:6}},
         chatMessages.length === 0
-          ? React.createElement('div', {style:{color:'var(--text3)', textAlign:'center', padding:40}}, 'No messages yet. Say hi!')
+          ? React.createElement('div', {style:{color:'var(--text3)', textAlign:'center', padding:40}}, 'No messages yet. Say hi! ', roomKey ? '\uD83D\uDD12 Messages are end-to-end encrypted.' : '')
           : chatMessages.map(m =>
               React.createElement('div', {key:m.id, style:{display:'flex', gap:8, alignItems:'flex-start'}},
                 React.createElement('strong', {style:{color: m.uid === myId ? 'var(--accent)' : 'var(--accent2)', fontSize:'0.85rem', whiteSpace:'nowrap'}}, m.username),
-                React.createElement('span', {style:{fontSize:'0.88rem', color:'var(--text)'}}, m.text),
-                React.createElement('span', {style:{marginLeft:'auto', fontSize:'0.7rem', color:'var(--text3)', whiteSpace:'nowrap'}}, timeAgo(m.timestamp))
+                React.createElement('span', {style:{fontSize:'0.88rem', color: m.text === '[encrypted]' ? 'var(--text3)' : 'var(--text)', fontStyle: m.text === '[encrypted]' ? 'italic' : 'normal', flex:1, wordBreak:'break-word'}}, m.text),
+                React.createElement('span', {style:{marginLeft:'auto', fontSize:'0.7rem', color:'var(--text3)', whiteSpace:'nowrap', flexShrink:0}}, timeAgo(m.timestamp))
               )
-            )
+            ),
+        React.createElement('div', {ref:chatEndRef})
       ),
+
+      // Typing indicator
+      typingText && React.createElement('div', {style:{fontSize:'0.78rem', color:'var(--text3)', padding:'2px 4px', marginBottom:4, fontStyle:'italic'}}, typingText),
+
       // Chat input
       React.createElement('div', {style:{display:'flex', gap:8}},
-        React.createElement('input', {type:'text', placeholder:'Type a message...', value:chatMsg, style:{flex:1},
-          onChange:e=>setChatMsg(e.target.value), onKeyDown:e=>{ if (e.key === 'Enter') sendChat(); }}),
+        React.createElement('input', {type:'text', placeholder: roomKey ? '\uD83D\uDD12 Encrypted message...' : 'Type a message...', value:chatMsg, style:{flex:1},
+          onChange:e=>{ setChatMsg(e.target.value); setMyTyping(e.target.value.length > 0); },
+          onKeyDown:e=>{ if (e.key === 'Enter') sendChat(); },
+          onBlur:()=>setMyTyping(false)
+        }),
         React.createElement('button', {className:'btn btn-primary', onClick:sendChat, disabled:!chatMsg.trim()}, 'Send')
       ),
+
+      // Leave room
       React.createElement('button', {className:'btn btn-outline btn-sm', style:{marginTop:12, color:'var(--red)', borderColor:'var(--red)'}, onClick:()=>leaveRoom(activeRoom)}, 'Leave Room')
     );
   }
@@ -1728,7 +2104,7 @@ function StudyRooms({ authUser }) {
   // Room list view
   return React.createElement('div', null,
     React.createElement('h2', {style:{marginBottom:4}}, '\uD83D\uDC65 Study Rooms'),
-    React.createElement('p', {style:{color:'var(--text2)', fontSize:'0.9rem', marginBottom:16}}, 'Study with classmates. Join a room or create your own.'),
+    React.createElement('p', {style:{color:'var(--text2)', fontSize:'0.9rem', marginBottom:16}}, 'Study with classmates. Voice chat + encrypted messaging.'),
 
     // Create room
     React.createElement('div', {style:{display:'flex', gap:8, marginBottom:20}},
@@ -1743,9 +2119,15 @@ function StudyRooms({ authUser }) {
       : roomList.map(room => {
           const members = Object.entries(room.members || {}).map(([uid, m]) => ({uid, ...m}));
           const isMember = members.some(m => m.uid === myId);
+          const hasVoice = room.voice && room.voice.participants && Object.keys(room.voice.participants).length > 0;
+          const voiceCount = hasVoice ? Object.keys(room.voice.participants).length : 0;
           return React.createElement('div', {key:room.id, className:'card', style:{display:'flex', alignItems:'center', gap:12, cursor:'pointer'}, onClick:()=>isMember ? setActiveRoom(room.id) : joinRoom(room.id)},
             React.createElement('div', {style:{flex:1}},
-              React.createElement('div', {style:{fontWeight:700, fontSize:'1.05rem', marginBottom:4}}, room.name),
+              React.createElement('div', {style:{fontWeight:700, fontSize:'1.05rem', marginBottom:4, display:'flex', alignItems:'center', gap:8}},
+                room.name,
+                room.encKey && React.createElement('span', {style:{fontSize:'0.7rem', color:'var(--green)'}}, '\uD83D\uDD12'),
+                hasVoice && React.createElement('span', {style:{fontSize:'0.7rem', color:'var(--green)', display:'flex', alignItems:'center', gap:2}}, '\uD83C\uDF99\uFE0F ', voiceCount)
+              ),
               React.createElement('div', {style:{fontSize:'0.85rem', color:'var(--text3)'}},
                 members.length + ' ' + (members.length === 1 ? 'person' : 'people') + ' \u2022 Created by ' + (room.createdBy || 'Unknown')
               ),
