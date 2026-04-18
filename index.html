@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MedMaster</title>
-<meta name="app-version" content="13">
+<meta name="app-version" content="14">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <!-- Firebase SDK -->
@@ -1893,7 +1893,7 @@ if (!document.getElementById('voice-bar-styles')) {
 // END VOICE CHAT & ENCRYPTION
 // ============================
 
-function StudyRooms({ authUser }) {
+function StudyRooms({ authUser, isAdmin }) {
   const [rooms, setRooms] = useState({});
   const [newRoomName, setNewRoomName] = useState('');
   const [activeRoom, setActiveRoom] = useState(null);
@@ -1988,8 +1988,15 @@ function StudyRooms({ authUser }) {
 
   const joinRoom = (roomId) => {
     if (!firebaseDb || !myId) return;
-    firebaseDb.ref('rooms/' + roomId + '/members/' + myId).set({name: myName, joinedAt: firebase.database.ServerValue.TIMESTAMP});
-    setActiveRoom(roomId);
+    // Check if room is locked (non-admins blocked)
+    firebaseDb.ref('rooms/' + roomId + '/locked').once('value', snap => {
+      if (snap.val() && !isAdmin) {
+        alert('This room is locked by an admin.');
+        return;
+      }
+      firebaseDb.ref('rooms/' + roomId + '/members/' + myId).set({name: myName, joinedAt: firebase.database.ServerValue.TIMESTAMP});
+      setActiveRoom(roomId);
+    });
   };
 
   const leaveRoom = (roomId) => {
@@ -2047,6 +2054,20 @@ function StudyRooms({ authUser }) {
         React.createElement('span', {style:{fontSize:'0.85rem', color:'var(--green)'}}, activeMembers.length + ' in room')
       ),
 
+      // Admin toolbar
+      isAdmin && React.createElement('div', {style:{display:'flex', gap:6, flexWrap:'wrap', marginBottom:8, padding:'8px 12px', background:'rgba(99,102,241,0.08)', borderRadius:8, border:'1px solid rgba(99,102,241,0.2)'}},
+        React.createElement('span', {style:{fontSize:'0.8rem', color:'var(--accent)', fontWeight:600, marginRight:4}}, '\uD83D\uDD12 Admin:'),
+        React.createElement('button', {className:'btn btn-outline btn-sm', style:{fontSize:'0.75rem', padding:'3px 8px'},
+          onClick:()=>firebaseDb.ref('rooms/' + activeRoom + '/locked').set(!(activeRoomData.locked || false))},
+          activeRoomData.locked ? '\uD83D\uDD13 Unlock' : '\uD83D\uDD12 Lock'),
+        React.createElement('button', {className:'btn btn-outline btn-sm', style:{fontSize:'0.75rem', padding:'3px 8px'},
+          onClick:()=>{ if (confirm('Clear all chat messages?')) firebaseDb.ref('rooms/' + activeRoom + '/chat').remove(); }}, '\uD83D\uDDD1\uFE0F Clear Chat'),
+        React.createElement('button', {className:'btn btn-outline btn-sm', style:{fontSize:'0.75rem', padding:'3px 8px'},
+          onClick:()=>{ const n = prompt('Rename room:', activeRoomData.name); if (n) firebaseDb.ref('rooms/' + activeRoom + '/name').set(n.trim()); }}, '\u270F\uFE0F Rename'),
+        React.createElement('button', {className:'btn btn-outline btn-sm', style:{fontSize:'0.75rem', padding:'3px 8px', color:'var(--red)', borderColor:'var(--red)'},
+          onClick:()=>{ if (confirm('Delete this room permanently?')) { firebaseDb.ref('rooms/' + activeRoom).remove(); setActiveRoom(null); } }}, '\uD83D\uDDD1\uFE0F Delete Room')
+      ),
+
       // Voice bar
       React.createElement(VoiceBar, {
         inVoice: voice.inVoice,
@@ -2064,7 +2085,12 @@ function StudyRooms({ authUser }) {
           const isInVoice = voice.voiceParticipants.some(v => v.uid === m.uid);
           return React.createElement('span', {key:m.uid, style:{padding:'4px 12px', borderRadius:20, background: m.uid === myId ? 'rgba(59,130,246,0.2)' : 'var(--surface)', fontSize:'0.85rem', color: m.uid === myId ? 'var(--accent)' : 'var(--text2)', display:'flex', alignItems:'center', gap:4}},
             isInVoice && React.createElement('span', {style:{fontSize:'0.7rem'}}, '\uD83C\uDF99\uFE0F'),
-            m.name + (m.uid === myId ? ' (you)' : '')
+            m.name + (m.uid === myId ? ' (you)' : ''),
+            isAdmin && m.uid !== myId && React.createElement('button', {
+              style:{background:'none', border:'none', color:'var(--red)', cursor:'pointer', fontSize:'0.65rem', padding:'0 2px', opacity:0.6, lineHeight:1},
+              title:'Kick ' + m.name,
+              onClick:(e) => { e.stopPropagation(); if(confirm('Kick ' + m.name + ' from this room?')) firebaseDb.ref('rooms/' + activeRoom + '/members/' + m.uid).remove(); }
+            }, '\u2715')
           );
         })
       ),
@@ -2077,7 +2103,9 @@ function StudyRooms({ authUser }) {
               React.createElement('div', {key:m.id, style:{display:'flex', gap:8, alignItems:'flex-start'}},
                 React.createElement('strong', {style:{color: m.uid === myId ? 'var(--accent)' : 'var(--accent2)', fontSize:'0.85rem', whiteSpace:'nowrap'}}, m.username),
                 React.createElement('span', {style:{fontSize:'0.88rem', color: m.text === '[encrypted]' ? 'var(--text3)' : 'var(--text)', fontStyle: m.text === '[encrypted]' ? 'italic' : 'normal', flex:1, wordBreak:'break-word'}}, m.text),
-                React.createElement('span', {style:{marginLeft:'auto', fontSize:'0.7rem', color:'var(--text3)', whiteSpace:'nowrap', flexShrink:0}}, timeAgo(m.timestamp))
+                React.createElement('span', {style:{marginLeft:'auto', fontSize:'0.7rem', color:'var(--text3)', whiteSpace:'nowrap', flexShrink:0}}, timeAgo(m.timestamp)),
+                isAdmin && React.createElement('button', {style:{background:'none', border:'none', color:'var(--red)', cursor:'pointer', fontSize:'0.7rem', padding:'0 2px', flexShrink:0, opacity:0.5},
+                  title:'Delete message', onClick:()=>firebaseDb.ref('rooms/' + activeRoom + '/chat/' + m.id).remove()}, '\u2715')
               )
             ),
         React.createElement('div', {ref:chatEndRef})
@@ -2125,6 +2153,7 @@ function StudyRooms({ authUser }) {
             React.createElement('div', {style:{flex:1}},
               React.createElement('div', {style:{fontWeight:700, fontSize:'1.05rem', marginBottom:4, display:'flex', alignItems:'center', gap:8}},
                 room.name,
+                room.locked && React.createElement('span', {style:{fontSize:'0.7rem', color:'var(--red)', padding:'1px 6px', borderRadius:8, background:'rgba(239,68,68,0.15)'}}, 'Locked'),
                 room.encKey && React.createElement('span', {style:{fontSize:'0.7rem', color:'var(--green)'}}, '\uD83D\uDD12'),
                 hasVoice && React.createElement('span', {style:{fontSize:'0.7rem', color:'var(--green)', display:'flex', alignItems:'center', gap:2}}, '\uD83C\uDF99\uFE0F ', voiceCount)
               ),
@@ -7283,7 +7312,89 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
     }
   };
 
-  const tabList = ['users', 'message', 'analytics', 'history', 'config'];
+  const tabList = ['users', 'rooms', 'message', 'analytics', 'history', 'config'];
+
+  // --- Room Management State ---
+  const [adminRooms, setAdminRooms] = useState({});
+  const [expandedRoom, setExpandedRoom] = useState(null);
+  const [roomChat, setRoomChat] = useState([]);
+  const [adminNewRoom, setAdminNewRoom] = useState('');
+
+  // Load all rooms for admin
+  useEffect(() => {
+    if (!firebaseDb || tab !== 'rooms') return;
+    const ref = firebaseDb.ref('rooms');
+    const onVal = ref.on('value', snap => setAdminRooms(snap.val() || {}));
+    return () => ref.off('value', onVal);
+  }, [tab]);
+
+  // Load chat for expanded room
+  useEffect(() => {
+    if (!firebaseDb || !expandedRoom) { setRoomChat([]); return; }
+    const ref = firebaseDb.ref('rooms/' + expandedRoom + '/chat').orderByChild('timestamp').limitToLast(100);
+    const onVal = ref.on('value', async (snap) => {
+      const data = snap.val() || {};
+      const msgs = Object.entries(data).map(([k, v]) => ({id: k, ...v})).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      // Try to decrypt
+      const roomData = adminRooms[expandedRoom];
+      if (roomData && roomData.encKey) {
+        for (let m of msgs) {
+          if (m.encrypted && m.text) {
+            m.text = await RoomCrypto.decrypt(m.text, roomData.encKey);
+          }
+        }
+      }
+      setRoomChat(msgs);
+    });
+    return () => ref.off('value', onVal);
+  }, [expandedRoom, adminRooms]);
+
+  const adminDeleteRoom = (roomId) => {
+    if (!firebaseDb) return;
+    firebaseDb.ref('rooms/' + roomId).remove();
+    if (expandedRoom === roomId) setExpandedRoom(null);
+  };
+
+  const adminKickFromRoom = (roomId, uid) => {
+    if (!firebaseDb) return;
+    firebaseDb.ref('rooms/' + roomId + '/members/' + uid).remove();
+    firebaseDb.ref('rooms/' + roomId + '/voice/participants/' + uid).remove();
+  };
+
+  const adminClearChat = (roomId) => {
+    if (!firebaseDb) return;
+    firebaseDb.ref('rooms/' + roomId + '/chat').remove();
+  };
+
+  const adminDeleteMessage = (roomId, msgId) => {
+    if (!firebaseDb) return;
+    firebaseDb.ref('rooms/' + roomId + '/chat/' + msgId).remove();
+  };
+
+  const adminLockRoom = (roomId, locked) => {
+    if (!firebaseDb) return;
+    firebaseDb.ref('rooms/' + roomId + '/locked').set(locked);
+  };
+
+  const adminCreateRoom = () => {
+    if (!adminNewRoom.trim() || !firebaseDb) return;
+    const roomId = 'room_' + Date.now();
+    RoomCrypto.generateRoomKey().then(encKey => {
+      firebaseDb.ref('rooms/' + roomId).set({
+        name: adminNewRoom.trim(),
+        createdBy: 'Admin',
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        encKey: encKey,
+        members: {}
+      });
+      setAdminNewRoom('');
+    });
+  };
+
+  const adminRenameRoom = (roomId, newName) => {
+    if (!firebaseDb || !newName.trim()) return;
+    firebaseDb.ref('rooms/' + roomId + '/name').set(newName.trim());
+  };
   const [currentInviteCode, setCurrentInviteCode] = useState('');
   const [newInviteCode, setNewInviteCode] = useState('');
   const [inviteCodeSaved, setInviteCodeSaved] = useState(false);
@@ -7311,7 +7422,7 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
     React.createElement('div', {className:'admin-tabs'},
       tabList.map(t =>
         React.createElement('button', {key:t, className:'admin-tab'+(tab===t?' active':''), onClick:()=>setTab(t)},
-          t === 'users' ? '\uD83D\uDC65 Users (' + online.length + ')' : t === 'message' ? '\uD83D\uDCE3 Message' : t === 'analytics' ? '\uD83D\uDCCA Analytics' : t === 'history' ? '\uD83D\uDCDC History' : '\u2699\uFE0F Config'
+          t === 'users' ? '\uD83D\uDC65 Users (' + online.length + ')' : t === 'rooms' ? '\uD83D\uDCAC Rooms' : t === 'message' ? '\uD83D\uDCE3 Message' : t === 'analytics' ? '\uD83D\uDCCA Analytics' : t === 'history' ? '\uD83D\uDCDC History' : '\u2699\uFE0F Config'
         )
       )
     ),
@@ -7349,6 +7460,139 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
               u.lastSeen ? new Date(u.lastSeen).toLocaleString() : 'unknown'
             )
           ))
+        )
+      ),
+
+      // ROOMS TAB — full admin management
+      tab === 'rooms' && React.createElement('div', null,
+        // Create room
+        React.createElement('div', {style:{display:'flex', gap:8, marginBottom:16}},
+          React.createElement('input', {type:'text', placeholder:'Create a new room...', value:adminNewRoom, maxLength:30,
+            style:{flex:1, padding:'10px 14px', borderRadius:8, border:'1px solid var(--surface2)', background:'var(--bg)', color:'var(--text)', fontSize:'0.9rem'},
+            onChange:e=>setAdminNewRoom(e.target.value), onKeyDown:e=>{ if (e.key === 'Enter') adminCreateRoom(); }}),
+          React.createElement('button', {className:'btn btn-primary', onClick:adminCreateRoom, disabled:!adminNewRoom.trim()}, '+ Create Room')
+        ),
+
+        // Room stats bar
+        React.createElement('div', {style:{display:'flex', gap:12, marginBottom:16, flexWrap:'wrap'}},
+          React.createElement('div', {style:{background:'var(--surface)', borderRadius:8, padding:'8px 14px', fontSize:'0.85rem'}},
+            '\uD83D\uDCAC ', Object.keys(adminRooms).length, ' total rooms'),
+          React.createElement('div', {style:{background:'var(--surface)', borderRadius:8, padding:'8px 14px', fontSize:'0.85rem'}},
+            '\uD83D\uDC65 ', Object.values(adminRooms).reduce((s, r) => s + Object.keys(r.members || {}).length, 0), ' total members'),
+          React.createElement('div', {style:{background:'var(--surface)', borderRadius:8, padding:'8px 14px', fontSize:'0.85rem'}},
+            '\uD83C\uDF99\uFE0F ', Object.values(adminRooms).reduce((s, r) => s + (r.voice && r.voice.participants ? Object.keys(r.voice.participants).length : 0), 0), ' in voice')
+        ),
+
+        // Room list
+        Object.keys(adminRooms).length === 0
+          ? React.createElement('div', {style:{textAlign:'center', padding:30, color:'var(--text3)'}}, 'No study rooms exist yet.')
+          : Object.entries(adminRooms).map(([roomId, room]) => {
+              const members = Object.entries(room.members || {}).map(([uid, m]) => ({uid, ...m}));
+              const voiceUsers = room.voice && room.voice.participants ? Object.keys(room.voice.participants).length : 0;
+              const chatCount = room.chat ? Object.keys(room.chat).length : 0;
+              const isExpanded = expandedRoom === roomId;
+              const isLocked = room.locked || false;
+
+              return React.createElement('div', {key:roomId, style:{background:'var(--surface)', borderRadius:12, padding:0, marginBottom:10, border: isExpanded ? '1px solid var(--accent)' : '1px solid var(--surface2)', overflow:'hidden'}},
+                // Room header
+                React.createElement('div', {style:{display:'flex', alignItems:'center', gap:10, padding:'12px 16px', cursor:'pointer'}, onClick:()=>setExpandedRoom(isExpanded ? null : roomId)},
+                  React.createElement('div', {style:{flex:1}},
+                    React.createElement('div', {style:{fontWeight:700, fontSize:'1rem', display:'flex', alignItems:'center', gap:8}},
+                      room.name,
+                      isLocked && React.createElement('span', {style:{fontSize:'0.7rem', color:'var(--red)', background:'rgba(239,68,68,0.1)', padding:'2px 6px', borderRadius:4}}, '\uD83D\uDD12 Locked'),
+                      room.encKey && React.createElement('span', {style:{fontSize:'0.7rem', color:'var(--green)'}}, '\uD83D\uDD10 E2E')
+                    ),
+                    React.createElement('div', {style:{fontSize:'0.8rem', color:'var(--text3)', marginTop:2}},
+                      members.length + ' members \u2022 ' + chatCount + ' messages' + (voiceUsers > 0 ? ' \u2022 ' + voiceUsers + ' in voice' : '') + ' \u2022 by ' + (room.createdBy || '?')
+                    )
+                  ),
+                  React.createElement('span', {style:{color:'var(--text3)', fontSize:'0.9rem', transition:'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)'}}, '\u25BC')
+                ),
+
+                // Expanded details
+                isExpanded && React.createElement('div', {style:{padding:'0 16px 16px', borderTop:'1px solid var(--surface2)'}},
+                  // Quick actions bar
+                  React.createElement('div', {style:{display:'flex', gap:8, flexWrap:'wrap', marginTop:12, marginBottom:14}},
+                    React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>adminLockRoom(roomId, !isLocked)},
+                      isLocked ? '\uD83D\uDD13 Unlock Room' : '\uD83D\uDD12 Lock Room'),
+                    React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>adminClearChat(roomId)}, '\uD83D\uDDD1\uFE0F Clear Chat'),
+                    React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>{
+                      const newName = prompt('Rename room:', room.name);
+                      if (newName) adminRenameRoom(roomId, newName);
+                    }}, '\u270F\uFE0F Rename'),
+                    React.createElement('button', {className:'btn btn-outline btn-sm', style:{color:'var(--red)', borderColor:'var(--red)'}, onClick:()=>{
+                      if (confirm('Delete room "' + room.name + '" and all its messages? This cannot be undone.')) adminDeleteRoom(roomId);
+                    }}, '\uD83D\uDDD1\uFE0F Delete Room')
+                  ),
+
+                  // Room ID
+                  React.createElement('div', {style:{fontSize:'0.75rem', color:'var(--text3)', marginBottom:10, fontFamily:'monospace'}}, 'ID: ' + roomId),
+
+                  // Members section
+                  React.createElement('div', {style:{marginBottom:14}},
+                    React.createElement('div', {style:{fontWeight:600, fontSize:'0.85rem', marginBottom:8}}, '\uD83D\uDC65 Members (' + members.length + ')'),
+                    members.length === 0
+                      ? React.createElement('div', {style:{fontSize:'0.8rem', color:'var(--text3)', padding:8}}, 'No members')
+                      : members.map(m => {
+                          const isInVoice = room.voice && room.voice.participants && room.voice.participants[m.uid];
+                          return React.createElement('div', {key:m.uid, style:{display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:6, background:'var(--bg)', marginBottom:4}},
+                            React.createElement('span', {style:{flex:1, fontSize:'0.88rem'}},
+                              m.name || 'Anonymous',
+                              isInVoice && React.createElement('span', {style:{fontSize:'0.7rem', color:'var(--green)', marginLeft:6}}, '\uD83C\uDF99\uFE0F voice')
+                            ),
+                            React.createElement('span', {style:{fontSize:'0.7rem', color:'var(--text3)', fontFamily:'monospace'}}, m.uid.substring(0, 8) + '...'),
+                            React.createElement('button', {className:'btn btn-outline btn-sm', style:{padding:'2px 8px', fontSize:'0.7rem', color:'var(--red)', borderColor:'var(--red)'},
+                              onClick:()=>adminKickFromRoom(roomId, m.uid)}, 'Kick')
+                          );
+                        })
+                  ),
+
+                  // Chat messages section
+                  React.createElement('div', null,
+                    React.createElement('div', {style:{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}},
+                      React.createElement('div', {style:{fontWeight:600, fontSize:'0.85rem'}}, '\uD83D\uDCAC Chat (' + chatCount + ' messages)'),
+                      chatCount > 0 && React.createElement('button', {className:'btn btn-outline btn-sm', style:{fontSize:'0.7rem', color:'var(--red)', borderColor:'var(--red)'},
+                        onClick:()=>{ if (confirm('Clear all ' + chatCount + ' messages?')) adminClearChat(roomId); }}, 'Clear All')
+                    ),
+                    React.createElement('div', {style:{maxHeight:250, overflowY:'auto', background:'var(--bg)', borderRadius:8, padding:10, border:'1px solid var(--surface2)'}},
+                      roomChat.length === 0
+                        ? React.createElement('div', {style:{fontSize:'0.8rem', color:'var(--text3)', textAlign:'center', padding:16}}, 'No messages')
+                        : roomChat.map(m =>
+                            React.createElement('div', {key:m.id, style:{display:'flex', gap:6, alignItems:'flex-start', padding:'4px 0', borderBottom:'1px solid var(--surface2)', fontSize:'0.82rem'}},
+                              React.createElement('strong', {style:{color:'var(--accent)', whiteSpace:'nowrap', fontSize:'0.8rem'}}, m.username || '?'),
+                              React.createElement('span', {style:{flex:1, color:'var(--text)', wordBreak:'break-word'}}, m.text),
+                              React.createElement('span', {style:{fontSize:'0.65rem', color:'var(--text3)', whiteSpace:'nowrap', flexShrink:0}},
+                                m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''),
+                              React.createElement('button', {style:{background:'none', border:'none', color:'var(--red)', cursor:'pointer', fontSize:'0.75rem', padding:'0 4px', flexShrink:0},
+                                onClick:()=>adminDeleteMessage(roomId, m.id), title:'Delete message'}, '\u2715')
+                            )
+                          )
+                    )
+                  )
+                )
+              );
+            }),
+
+        // Bulk actions
+        Object.keys(adminRooms).length > 0 && React.createElement('div', {style:{marginTop:16, padding:14, background:'var(--surface)', borderRadius:10, border:'1px solid var(--surface2)'}},
+          React.createElement('div', {style:{fontWeight:600, fontSize:'0.85rem', marginBottom:10}}, '\u26A1 Bulk Actions'),
+          React.createElement('div', {style:{display:'flex', gap:8, flexWrap:'wrap'}},
+            React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>{
+              if (!confirm('Delete ALL empty rooms (no members)?')) return;
+              Object.entries(adminRooms).forEach(([id, r]) => {
+                if (!r.members || Object.keys(r.members).length === 0) firebaseDb.ref('rooms/' + id).remove();
+              });
+            }}, '\uD83E\uDDF9 Delete Empty Rooms'),
+            React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>{
+              if (!confirm('Clear chat history in ALL rooms?')) return;
+              Object.keys(adminRooms).forEach(id => firebaseDb.ref('rooms/' + id + '/chat').remove());
+            }}, '\uD83D\uDDD1\uFE0F Clear All Chats'),
+            React.createElement('button', {className:'btn btn-outline btn-sm', style:{color:'var(--red)', borderColor:'var(--red)'}, onClick:()=>{
+              if (!confirm('DELETE ALL ROOMS? This removes everything - rooms, messages, voice data. Cannot be undone.')) return;
+              if (!confirm('Are you SURE? This will delete ' + Object.keys(adminRooms).length + ' rooms.')) return;
+              firebaseDb.ref('rooms').remove();
+            }}, '\uD83D\uDCA3 Delete All Rooms')
+          )
         )
       ),
 
@@ -7774,7 +8018,7 @@ function App() {
       case 'pharm': return React.createElement(PharmHub, {progress, setProgress});
       case 'labday': return React.createElement(LabDayTest, {progress, setProgress});
       case 'smart': return React.createElement(SmartStudy, {progress, setProgress});
-      case 'rooms': return React.createElement(StudyRooms, {authUser});
+      case 'rooms': return React.createElement(StudyRooms, {authUser, isAdmin});
       case 'flashcards': return React.createElement(FlashcardHub, {progress, setProgress});
       case 'formulas': return React.createElement(FormulaCreator, {progress, setProgress});
       case 'leaderboard': return React.createElement(Leaderboard, {authUser});
