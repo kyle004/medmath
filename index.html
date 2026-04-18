@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MedMaster</title>
-<meta name="app-version" content="11">
+<meta name="app-version" content="12">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <!-- Firebase SDK -->
@@ -2153,6 +2153,358 @@ function FormulaLab() {
 }
 
 // ============================
+// DYNAMIC FORMULA ENGINE
+// ============================
+const ce = React.createElement;
+
+const SOLVE_METHODS = [
+  { id:'formula', name:'Formula Method', type:'formula', description:'Use D/H x Q or the standard formula for each problem type', icon:'\uD83D\uDCD0' },
+  { id:'dimensional_analysis', name:'Dimensional Analysis', type:'dimensional_analysis', description:'Train-track / factor-label method: chain conversion fractions', icon:'\uD83D\uDE82' },
+  { id:'ratio_proportion', name:'Ratio & Proportion', type:'ratio_proportion', description:'H:Q :: D:X \u2014 set up proportion, cross-multiply, solve', icon:'\u2696\uFE0F' }
+];
+
+const FORMULA_VARS = {D:'Desired/Ordered dose',H:'Have/On Hand',Q:'Quantity/Volume',W:'Weight (kg)',W_lb:'Weight (lbs)',C:'Concentration',V:'Volume',T:'Time',DF:'Drop Factor'};
+
+function safeEval(expr, vars) {
+  let s = String(expr).trim();
+  const allowed = Object.keys(vars);
+  allowed.sort((a,b) => b.length - a.length).forEach(k => {
+    s = s.replace(new RegExp('\\b' + k.replace('_','_') + '\\b', 'g'), String(vars[k]));
+  });
+  if (/[a-zA-Z_]/.test(s)) return NaN;
+  if (!/^[\d\s+\-*/().]+$/.test(s)) return NaN;
+  try { return new Function('return ' + s)(); } catch(e) { return NaN; }
+}
+
+function pNum(v) { return parseFloat(String(v).replace(/,/g,'')); }
+
+function generateDASteps(question) {
+  const q = question, s = q.steps;
+  if (!s || !s.length) return [];
+  const f = q.formula;
+
+  if (f === 'weight-based-dose') {
+    const steps = [];
+    const hasLbConvert = s.find(st => /lbs?\s*(to|.*kg)/i.test(st.label) || /convert.*kg/i.test(st.label));
+    if (hasLbConvert) {
+      const lbs = pNum(hasLbConvert.hint.split(/[\u00f7\/]/)[0]);
+      const kg = pNum(hasLbConvert.answer);
+      steps.push({ label:'Convert weight', numerator: lbs + ' lb', denominator:'1', result: kg + ' kg', resultUnit:'kg',
+        hint: lbs + ' lb \u00D7 (1 kg / 2.2 lb) = ' + kg + ' kg', numerator2:'1 kg', denominator2:'2.2 lb' });
+    }
+    const calcStep = s.find(st => /total|calculate|multiply/i.test(st.label));
+    if (calcStep) {
+      const ans = pNum(calcStep.answer);
+      const parts = calcStep.hint.replace(/[\u00d7x]/gi,'*').split('*').map(p=>p.trim());
+      steps.push({ label:'Apply dose rate', numerator: (parts[0]||'').trim(), denominator:'1', result: ans + ' ' + calcStep.unit, resultUnit: calcStep.unit,
+        hint: calcStep.hint.replace(/\u00d7/g,'\u00D7') + ' = ' + ans + ' ' + calcStep.unit,
+        numerator2: parts[0], denominator2: '1 ' + (steps.length ? steps[steps.length-1].resultUnit : 'kg') });
+    }
+    const convertStep = s.find(st => /convert.*m[cg]/i.test(st.label));
+    if (convertStep) {
+      const ans = pNum(convertStep.answer);
+      steps.push({ label:'Convert units', numerator:'1 ' + convertStep.unit, denominator:'1000 mcg', result: ans + ' ' + convertStep.unit, resultUnit: convertStep.unit,
+        hint: convertStep.hint + ' = ' + ans + ' ' + convertStep.unit, numerator2:'1 mg', denominator2:'1000 mcg' });
+    }
+    if (steps.length) return steps;
+  }
+
+  if (f === 'desired-over-have') {
+    const steps = [];
+    s.forEach((st,i) => {
+      const ans = pNum(st.answer);
+      steps.push({ label: st.label, numerator: st.hint.split(/[\u00f7\/\u00d7x*]/i)[0].trim(), denominator: (st.hint.split(/[\u00f7\/\u00d7x*]/i)[1]||'1').trim(),
+        result: ans + ' ' + st.unit, resultUnit: st.unit, hint: st.hint + ' = ' + ans + ' ' + st.unit,
+        numerator2: st.hint.split(/[\u00f7\/\u00d7x*]/i)[0].trim(), denominator2: (st.hint.split(/[\u00f7\/\u00d7x*]/i)[1]||'1').trim() });
+    });
+    return steps;
+  }
+
+  if (f === 'iv-ml-hr' || f === 'gtt-min' || f === 'heparin-infusion' || f === 'mcg-kg-min' || f === 'daily-dose-divided' || f === 'weight-conversion') {
+    return s.map(st => {
+      const parts = st.hint.replace(/[\u00d7x]/gi,'*').replace(/\u00f7/g,'/').split(/[*/]/).map(p=>p.trim());
+      return { label: st.label, numerator: parts[0] || st.hint, denominator: parts[1] || '1',
+        result: pNum(st.answer) + ' ' + st.unit, resultUnit: st.unit,
+        hint: st.hint + ' = ' + st.answer + ' ' + st.unit,
+        numerator2: parts[0] || '', denominator2: parts[1] || '1' };
+    });
+  }
+
+  return s.map(st => ({
+    label: st.label, numerator: st.hint, denominator:'1',
+    result: st.answer + ' ' + st.unit, resultUnit: st.unit,
+    hint: st.hint + ' = ' + st.answer + ' ' + st.unit,
+    numerator2: st.hint, denominator2:'1'
+  }));
+}
+
+function generateRPSteps(question) {
+  const q = question, s = q.steps;
+  if (!s || !s.length) return [];
+
+  if (q.formula === 'desired-over-have' && s.length >= 1) {
+    const finalStep = s[s.length - 1];
+    const ans = pNum(finalStep.answer);
+    return [
+      { label:'Set up proportion', proportion:'H : Q :: D : X', math:'Known ratio equals desired ratio', answer:'', unit:'', hint:'H = Have, Q = Quantity, D = Desired dose' },
+      { label:'Cross multiply', proportion:'H \u00D7 X = Q \u00D7 D', math: finalStep.hint, answer:'', unit:'', hint:'Multiply the means and extremes' },
+      { label:'Solve for X', proportion:'X = ' + finalStep.hint, math: finalStep.hint + ' = ' + ans, answer: String(ans), unit: finalStep.unit, hint: 'X = ' + ans + ' ' + finalStep.unit }
+    ];
+  }
+
+  return s.map((st, i) => {
+    const ans = pNum(st.answer);
+    return { label: st.label, proportion: st.hint.replace(/[\u00f7\/]/g,' : ').replace(/[\u00d7x*]/gi,' :: '),
+      math: st.hint + ' = ' + ans, answer: String(ans), unit: st.unit, hint: st.hint };
+  });
+}
+
+function MethodSelector({ currentMethod, onSelect, customFormulas }) {
+  const all = [...SOLVE_METHODS, ...(customFormulas || []).map(cf => ({id: cf.id, name: cf.name, icon:'\u2728', description:'Custom formula'}))];
+  return ce('div', { style:{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 } },
+    all.map(m => ce('button', {
+      key: m.id,
+      onClick: () => onSelect(m.id),
+      style: {
+        padding:'8px 14px', borderRadius:8, border: currentMethod === m.id ? '2px solid var(--accent)' : '2px solid var(--surface2)',
+        background: currentMethod === m.id ? 'rgba(59,130,246,0.15)' : 'var(--surface)',
+        color: currentMethod === m.id ? 'var(--accent)' : 'var(--text2)',
+        cursor:'pointer', fontSize:'0.82rem', fontWeight:600, transition:'all 0.2s', display:'flex', alignItems:'center', gap:6
+      }
+    }, m.icon, ' ', m.name))
+  );
+}
+
+function DATrainTrack({ steps, activeStep }) {
+  if (!steps || !steps.length) return ce('div', {style:{color:'var(--text3)', padding:16}}, 'No dimensional analysis steps available.');
+  return ce('div', { style:{ overflowX:'auto', padding:'12px 0' } },
+    ce('div', { style:{ display:'flex', flexWrap:'wrap', gap:8, alignItems:'center', justifyContent:'center' } },
+      steps.map((s, i) => ce(React.Fragment, {key:i},
+        i > 0 && ce('span', { style:{ fontSize:'1.3rem', color:'var(--text3)', fontWeight:700, padding:'0 2px' } }, '\u00D7'),
+        ce('div', { style:{
+          background: i <= activeStep ? 'var(--surface)' : 'var(--bg)',
+          border: i === activeStep ? '2px solid var(--accent)' : i < activeStep ? '2px solid var(--green)' : '2px solid var(--surface2)',
+          borderRadius:10, padding:'10px 14px', minWidth:90, textAlign:'center', transition:'all 0.2s', position:'relative'
+        }},
+          ce('div', { style:{ fontSize:'0.75rem', color:'var(--text3)', marginBottom:4, fontWeight:600 } }, s.label),
+          ce('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center' } },
+            ce('div', { style:{ fontSize:'0.95rem', color:'var(--text)', fontWeight:600, padding:'2px 8px' } }, s.numerator2 || s.numerator),
+            ce('div', { style:{ width:'100%', height:2, background:'var(--text3)', margin:'3px 0' } }),
+            ce('div', { style:{ fontSize:'0.95rem', color:'var(--text2)', padding:'2px 8px' } }, s.denominator2 || s.denominator)
+          ),
+          i <= activeStep && ce('div', { style:{ marginTop:6, fontSize:'0.8rem', color:'var(--green)', fontWeight:700, background:'rgba(34,197,94,0.1)', borderRadius:6, padding:'3px 8px' } },
+            '= ', s.result)
+        )
+      ))
+    )
+  );
+}
+
+function RPDisplay({ steps, activeStep }) {
+  if (!steps || !steps.length) return ce('div', {style:{color:'var(--text3)', padding:16}}, 'No ratio & proportion steps available.');
+  return ce('div', { style:{ padding:'8px 0' } },
+    steps.map((s, i) => ce('div', { key:i, style:{
+      background: i === activeStep ? 'var(--surface)' : 'var(--bg)',
+      border: i === activeStep ? '2px solid var(--accent)' : i < activeStep ? '2px solid var(--green)' : '2px solid var(--surface2)',
+      borderRadius:10, padding:14, marginBottom:10, opacity: i > activeStep + 1 ? 0.4 : 1, transition:'all 0.2s'
+    }},
+      ce('div', { style:{ fontWeight:700, fontSize:'0.9rem', color: i < activeStep ? 'var(--green)' : i === activeStep ? 'var(--accent)' : 'var(--text2)', marginBottom:6 } },
+        i < activeStep ? '\u2713 ' : '', 'Step ', i+1, ': ', s.label),
+      ce('div', { style:{ fontFamily:'"Courier New",monospace', fontSize:'1.1rem', color:'var(--orange)', fontWeight:700, marginBottom:4, textAlign:'center', padding:'6px 0' } }, s.proportion),
+      s.math && i <= activeStep && ce('div', { style:{ fontSize:'0.88rem', color:'var(--text2)', textAlign:'center' } }, s.math),
+      s.answer && i <= activeStep && ce('div', { style:{ fontSize:'0.9rem', color:'var(--green)', fontWeight:700, textAlign:'center', marginTop:4 } }, 'X = ', s.answer, ' ', s.unit)
+    ))
+  );
+}
+
+function FormulaCreator({ progress, setProgress }) {
+  const [name, setName] = useState('');
+  const [steps, setSteps] = useState([{label:'', math:'', unit:''}]);
+  const [editing, setEditing] = useState(null);
+  const customs = (progress.customFormulas || []);
+
+  function addStep() { setSteps(p => [...p, {label:'', math:'', unit:''}]); }
+  function removeStep(i) { setSteps(p => p.filter((_,j)=>j!==i)); }
+  function updateStep(i, field, val) { setSteps(p => p.map((s,j) => j===i ? {...s,[field]:val} : s)); }
+
+  function save() {
+    if (!name.trim() || steps.every(s => !s.label.trim())) return;
+    const f = { id:'custom_' + Date.now(), name: name.trim(), steps: steps.filter(s=>s.label.trim()), createdAt: Date.now() };
+    const updated = editing !== null ? customs.map((c,i)=> i===editing ? {...f, id:c.id} : c) : [...customs, f];
+    setProgress(p => ({...p, customFormulas: updated}));
+    setName(''); setSteps([{label:'',math:'',unit:''}]); setEditing(null);
+  }
+
+  function del(i) { setProgress(p => ({...p, customFormulas: customs.filter((_,j)=>j!==i)})); }
+  function edit(i) { const c = customs[i]; setName(c.name); setSteps(c.steps.map(s=>({...s}))); setEditing(i); }
+
+  const varPanel = ce('div', { style:{ background:'var(--bg)', borderRadius:10, padding:14, marginBottom:16, border:'1px solid var(--surface2)' } },
+    ce('div', { style:{ fontWeight:700, fontSize:'0.85rem', color:'var(--accent)', marginBottom:8 } }, 'Available Variables'),
+    ce('div', { style:{ display:'flex', flexWrap:'wrap', gap:6 } },
+      Object.entries(FORMULA_VARS).map(([k,v]) => ce('span', { key:k, style:{ background:'var(--surface2)', borderRadius:6, padding:'3px 8px', fontSize:'0.78rem', color:'var(--text)' } },
+        ce('strong', null, k), ' = ', v))
+    )
+  );
+
+  return ce('div', null,
+    ce('h2', null, '\u2728 Custom Formula Builder'),
+    ce('p', {style:{color:'var(--text2)', marginBottom:16, fontSize:'0.9rem'}}, 'Create your own solve methods. Define steps with math expressions using the variables below.'),
+    ce('div', {className:'card'},
+      varPanel,
+      ce('input', { type:'text', placeholder:'Formula name...', value:name, onChange:e=>setName(e.target.value), style:{marginBottom:12, width:'100%', padding:'10px 14px', borderRadius:8, border:'1px solid var(--surface2)', background:'var(--bg)', color:'var(--text)', fontSize:'0.95rem'} }),
+      steps.map((s,i) => ce('div', { key:i, style:{ display:'flex', gap:8, marginBottom:8, alignItems:'center', flexWrap:'wrap' } },
+        ce('span', { style:{color:'var(--text3)', fontSize:'0.8rem', minWidth:50} }, 'Step '+(i+1)),
+        ce('input', { type:'text', placeholder:'Label (e.g. Convert lbs to kg)', value:s.label, onChange:e=>updateStep(i,'label',e.target.value), style:{flex:2, minWidth:120, padding:'8px 12px', borderRadius:8, border:'1px solid var(--surface2)', background:'var(--bg)', color:'var(--text)', fontSize:'0.85rem'} }),
+        ce('input', { type:'text', placeholder:'Math (e.g. D / H * Q)', value:s.math, onChange:e=>updateStep(i,'math',e.target.value), style:{flex:1, minWidth:120, padding:'8px 12px', borderRadius:8, border:'1px solid var(--surface2)', background:'var(--bg)', color:'var(--text)', fontSize:'0.85rem', fontFamily:'"Courier New",monospace'} }),
+        ce('input', { type:'text', placeholder:'Unit', value:s.unit, onChange:e=>updateStep(i,'unit',e.target.value), style:{width:70, padding:'8px 12px', borderRadius:8, border:'1px solid var(--surface2)', background:'var(--bg)', color:'var(--text)', fontSize:'0.85rem'} }),
+        steps.length > 1 && ce('button', { className:'btn btn-outline btn-sm', onClick:()=>removeStep(i), style:{color:'var(--red)', borderColor:'var(--red)', padding:'6px 10px'} }, '\u2715')
+      )),
+      ce('div', { style:{display:'flex', gap:8, marginBottom:16, marginTop:8} },
+        ce('button', { className:'btn btn-outline btn-sm', onClick:addStep }, '+ Add Step'),
+        ce('button', { className:'btn btn-primary btn-sm', onClick:save, disabled:!name.trim() || steps.every(s=>!s.label.trim()) }, editing !== null ? 'Update Formula' : 'Save Formula'),
+        editing !== null && ce('button', { className:'btn btn-outline btn-sm', onClick:()=>{setName('');setSteps([{label:'',math:'',unit:''}]);setEditing(null);} }, 'Cancel')
+      ),
+      name && steps.some(s=>s.label) && ce('div', { style:{ background:'var(--bg)', borderRadius:10, padding:14, marginBottom:16, border:'1px solid var(--accent)', borderStyle:'dashed' } },
+        ce('div', { style:{fontWeight:700, fontSize:'0.9rem', color:'var(--accent)', marginBottom:8} }, '\uD83D\uDC41 Preview: ', name),
+        steps.filter(s=>s.label).map((s,i) => ce('div', {key:i, style:{fontSize:'0.85rem', color:'var(--text2)', marginBottom:4, paddingLeft:8}},
+          ce('span', {style:{color:'var(--text3)'}}, (i+1) + '. '),
+          s.label, s.math ? ce('span', {style:{color:'var(--orange)', fontFamily:'monospace'}}, ' \u2192 ' + s.math) : '', s.unit ? ce('span', {style:{color:'var(--text3)'}}, ' (' + s.unit + ')') : ''))
+      )
+    ),
+    customs.length > 0 && ce('div', {className:'card', style:{marginTop:16}},
+      ce('h3', { style:{marginBottom:12} }, 'Your Custom Formulas'),
+      customs.map((c,i) => ce('div', { key:c.id, style:{ display:'flex', justifyContent:'space-between', alignItems:'center', background:'var(--bg)', borderRadius:10, padding:'12px 16px', marginBottom:8, border:'1px solid var(--surface2)' } },
+        ce('div', null,
+          ce('div', { style:{fontWeight:700, fontSize:'0.95rem'} }, '\u2728 ', c.name),
+          ce('div', { style:{fontSize:'0.8rem', color:'var(--text3)', marginTop:2} }, c.steps.length + ' step' + (c.steps.length > 1 ? 's' : '') + ' \u2022 ' + c.steps.map(s=>s.label).join(' \u2192 '))
+        ),
+        ce('div', { style:{display:'flex', gap:6} },
+          ce('button', { className:'btn btn-outline btn-sm', onClick:()=>edit(i) }, 'Edit'),
+          ce('button', { className:'btn btn-outline btn-sm', onClick:()=>del(i), style:{color:'var(--red)', borderColor:'var(--red)'} }, 'Delete')
+        )
+      ))
+    )
+  );
+}
+
+function StepByStepSolver({ question, progress, customFormulas, onStepCheck, onComplete }) {
+  const [method, setMethod] = useState('formula');
+  const [activeStep, setActiveStep] = useState(0);
+  const [stepInputs, setStepInputs] = useState({});
+  const [stepStatus, setStepStatus] = useState({});
+  const [showHints, setShowHints] = useState({});
+  const [completed, setCompleted] = useState(false);
+
+  const stepsForMethod = useMemo(() => {
+    if (method === 'formula') return question.steps || [];
+    if (method === 'dimensional_analysis') return generateDASteps(question);
+    if (method === 'ratio_proportion') return generateRPSteps(question);
+    const cf = (customFormulas || []).find(c => c.id === method);
+    if (cf) {
+      return cf.steps.map(s => {
+        const vars = {};
+        (question.steps || []).forEach(qs => { const v = pNum(qs.answer); if (!isNaN(v)) vars['step' + qs.unit] = v; });
+        const result = s.math ? safeEval(s.math, vars) : NaN;
+        return { label: s.label, hint: s.math || '', answer: isNaN(result) ? '' : String(Math.round(result*1000)/1000), unit: s.unit };
+      });
+    }
+    return question.steps || [];
+  }, [method, question]);
+
+  useEffect(() => { setActiveStep(0); setStepInputs({}); setStepStatus({}); setShowHints({}); setCompleted(false); }, [method, question.id]);
+
+  function checkStep(i) {
+    const step = stepsForMethod[i];
+    if (!step) return;
+    const userVal = (stepInputs[i] || '').trim();
+    const expected = step.answer || (step.result ? String(pNum(step.result)) : '');
+    if (!expected) { setStepStatus(p => ({...p, [i]:'correct'})); advance(i); return; }
+    const userNum = pNum(userVal);
+    const expNum = pNum(expected);
+    const isCorrect = !isNaN(userNum) && !isNaN(expNum) && Math.abs(userNum - expNum) < (expNum * 0.02 + 0.5);
+    if (isCorrect) {
+      setStepStatus(p => ({...p, [i]:'correct'}));
+      if (onStepCheck) onStepCheck(i, true);
+      advance(i);
+    } else {
+      setStepStatus(p => ({...p, [i]:'wrong'}));
+      if (onStepCheck) onStepCheck(i, false);
+    }
+  }
+
+  function advance(i) {
+    if (i >= stepsForMethod.length - 1) { setCompleted(true); if (onComplete) onComplete(); }
+    else { setActiveStep(i + 1); }
+  }
+
+  function showAnswer(i) {
+    const step = stepsForMethod[i];
+    const ans = step.answer || (step.result ? String(pNum(step.result)) : '');
+    setStepInputs(p => ({...p, [i]: ans}));
+  }
+
+  const methodVis = method === 'dimensional_analysis'
+    ? ce(DATrainTrack, { steps: stepsForMethod, activeStep })
+    : method === 'ratio_proportion'
+    ? ce(RPDisplay, { steps: stepsForMethod, activeStep })
+    : null;
+
+  return ce('div', null,
+    ce('div', {style:{marginBottom:12}},
+      ce('div', {style:{fontSize:'0.8rem', color:'var(--text3)', marginBottom:6, fontWeight:600}}, 'SOLVE METHOD'),
+      ce(MethodSelector, { currentMethod: method, onSelect: setMethod, customFormulas })
+    ),
+    methodVis,
+    ce('div', null,
+      stepsForMethod.map((s, i) => {
+        const status = stepStatus[i];
+        const isActive = i === activeStep && !completed;
+        const isLocked = i > activeStep && !completed;
+        const lbl = s.label || ('Step ' + (i+1));
+        const unitStr = s.unit || s.resultUnit || '';
+        const hintStr = s.hint || '';
+        const ansStr = s.answer || (s.result ? String(pNum(s.result)) : '');
+
+        return ce('div', { key: method + '-' + i, className:'step' + (status === 'correct' ? ' completed' : status === 'wrong' ? ' wrong' : isActive ? ' active' : ''),
+          style: isLocked ? {opacity:0.4} : {} },
+          ce('div', { className:'step-header' },
+            ce('div', { className:'step-num' }, status === 'correct' ? '\u2713' : i+1),
+            ce('span', { className:'step-label' }, lbl)
+          ),
+          !isLocked && ce(React.Fragment, null,
+            ansStr && ce('div', { className:'step-input-row' },
+              ce('input', { type:'text', placeholder:'Your answer...', value: stepInputs[i] || '',
+                onChange: e => setStepInputs(p => ({...p, [i]: e.target.value})),
+                onKeyDown: e => { if (e.key === 'Enter') checkStep(i); },
+                disabled: status === 'correct'
+              }),
+              unitStr && ce('span', { style:{color:'var(--text3)', fontSize:'0.85rem', whiteSpace:'nowrap'} }, unitStr),
+              status !== 'correct' && ce('button', { className:'btn btn-primary btn-sm', onClick:()=>checkStep(i) }, 'Check')
+            ),
+            !ansStr && status !== 'correct' && ce('div', { style:{fontSize:'0.85rem', color:'var(--text2)', marginTop:4} }, hintStr),
+            ce('div', { style:{display:'flex', gap:8, marginTop:6} },
+              !showHints[i] && status !== 'correct' && hintStr && ansStr && ce('button', { className:'btn btn-outline btn-sm', onClick:()=>setShowHints(p=>({...p,[i]:true})) }, 'Show Hint'),
+              status === 'wrong' && ansStr && ce('button', { className:'btn btn-outline btn-sm', onClick:()=>showAnswer(i) }, 'Show Answer')
+            ),
+            showHints[i] && hintStr && ce('div', { className:'step-hint' }, '\uD83D\uDCA1 ', hintStr),
+            status === 'correct' && ce('div', { className:'step-feedback correct' }, '\u2713 Correct!'),
+            status === 'wrong' && ce('div', { className:'step-feedback incorrect' }, '\u2717 Not quite. Try again or show hint.')
+          )
+        );
+      })
+    ),
+    completed && ce('div', { style:{textAlign:'center', padding:'20px 0'} },
+      ce('div', { style:{fontSize:'1.5rem', marginBottom:8} }, '\uD83C\uDF89'),
+      ce('p', { style:{fontWeight:700, color:'var(--green)', marginBottom:8} }, 'Problem Complete!'),
+      ce('p', { style:{fontSize:'0.85rem', color:'var(--text2)'} }, 'Solved using: ', (SOLVE_METHODS.find(m=>m.id===method)||{name:method}).name)
+    )
+  );
+}
+// ============================
+// END DYNAMIC FORMULA ENGINE
+// ============================
+
+// ============================
 // GUIDED PRACTICE
 // ============================
 // Highlight rendering: takes question text + phrase arrays, returns React elements
@@ -2335,39 +2687,24 @@ function GuidedPractice({ progress, setProgress }) {
     })(),
     React.createElement('div', {className:'card'},
       React.createElement('h3', null, 'Solve Step by Step'),
-      q.steps.map((s, i) => {
-        const status = stepStatus[i];
-        const isActive = i === activeStep && !completed;
-        const isLocked = i > activeStep && !completed;
-        return React.createElement('div', {key:i, className:'step' + (status === 'correct' ? ' completed' : status === 'wrong' ? ' wrong' : isActive ? ' active' : ''), style: isLocked ? {opacity:0.4} : {}},
-          React.createElement('div', {className:'step-header'},
-            React.createElement('div', {className:'step-num'}, status === 'correct' ? '\u2713' : i + 1),
-            React.createElement('span', {className:'step-label'}, s.label)
-          ),
-          !isLocked && React.createElement(React.Fragment, null,
-            React.createElement('div', {className:'step-input-row'},
-              React.createElement('input', {
-                type:'text', placeholder:'Your answer...', value: stepInputs[i] || '',
-                onChange: e => setStepInputs(p => ({...p, [i]: e.target.value})),
-                onKeyDown: e => { if (e.key === 'Enter') checkStep(i); },
-                disabled: status === 'correct'
-              }),
-              React.createElement('span', {style:{color:'var(--text3)', fontSize:'0.85rem', whiteSpace:'nowrap'}}, s.unit),
-              status !== 'correct' && React.createElement('button', {className:'btn btn-primary btn-sm', onClick:()=>checkStep(i)}, 'Check')
-            ),
-            React.createElement('div', {style:{display:'flex', gap:8, marginTop:6}},
-              !showHints[i] && status !== 'correct' && React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>setShowHints(p=>({...p,[i]:true}))}, 'Show Hint'),
-              status === 'wrong' && React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>setStepInputs(p=>({...p,[i]:s.answer}))}, 'Show Answer')
-            ),
-            showHints[i] && React.createElement('div', {className:'step-hint'}, '\u{1F4A1} ', s.hint),
-            status === 'correct' && React.createElement('div', {className:'step-feedback correct'}, '\u2713 Correct!'),
-            status === 'wrong' && React.createElement('div', {className:'step-feedback incorrect'}, '\u2717 Not quite. Try again or show hint.')
-          )
-        );
+      React.createElement(StepByStepSolver, {
+        question: q,
+        progress: progress,
+        customFormulas: progress.customFormulas || [],
+        onStepCheck: function(i, correct) {
+          if (!correct) setProgress(p => recordAttempt(p, q.id, false));
+        },
+        onComplete: function() {
+          setCompleted(true);
+          setProgress(p => {
+            let updated = recordAttempt(p, q.id, true);
+            const done = [...(updated.completedQuestions || [])];
+            if (!done.includes(q.id)) done.push(q.id);
+            return {...updated, completedQuestions: done};
+          });
+        }
       }),
       completed && React.createElement('div', {style:{textAlign:'center', padding:'16px 0'}},
-        React.createElement('div', {style:{fontSize:'1.5rem', marginBottom:8}}, '\u{1F389}'),
-        React.createElement('p', {style:{fontWeight:700, color:'var(--green)', marginBottom:12}}, 'Problem Complete!'),
         qIdx < filtered.length - 1 && React.createElement('button', {className:'btn btn-primary', onClick:()=>reset(qIdx+1)}, 'Next Problem \u2192')
       )
     ),
@@ -2579,16 +2916,17 @@ function ChallengePractice({ progress, setProgress }) {
             )
           )
         ),
-        // Nuclear option: show full walkthrough
+        // Nuclear option: show full guided walkthrough with method selector
         !showFull && React.createElement('button', {className:'btn btn-outline btn-sm', style:{marginTop:4, alignSelf:'flex-start', color:'var(--red)', borderColor:'var(--red)'},
-          onClick:()=>setShowFull(true)}, '\uD83D\uDEA8 Show Full Walkthrough'),
+          onClick:()=>setShowFull(true)}, '\uD83D\uDEA8 Show Full Walkthrough (with Method Selector)'),
         showFull && React.createElement('div', {style:{marginTop:8, padding:'14px', background:'rgba(239,68,68,0.06)', borderRadius:10, border:'1px solid rgba(239,68,68,0.2)'}},
-          React.createElement('div', {style:{fontWeight:700, color:'var(--red)', marginBottom:8, fontSize:'0.9rem'}}, 'Full Solution:'),
-          q.steps.map((s, i) => React.createElement('div', {key:i, style:{padding:'6px 0', borderBottom: i < q.steps.length-1 ? '1px solid var(--surface2)' : 'none', fontSize:'0.9rem'}},
-            React.createElement('span', {style:{color:'var(--text3)', fontWeight:600}}, 'Step ' + (i+1) + ': '),
-            React.createElement('span', {style:{color:'var(--text2)'}}, s.label + ' \u2192 '),
-            React.createElement('span', {style:{fontWeight:700, color:'var(--accent)'}}, s.answer + ' ' + s.unit)
-          ))
+          React.createElement(StepByStepSolver, {
+            question: q,
+            progress: progress,
+            customFormulas: progress.customFormulas || [],
+            onStepCheck: function() {},
+            onComplete: function() {}
+          })
         )
       )
     ),
@@ -7056,6 +7394,7 @@ function App() {
       case 'smart': return React.createElement(SmartStudy, {progress, setProgress});
       case 'rooms': return React.createElement(StudyRooms, {authUser});
       case 'flashcards': return React.createElement(FlashcardHub, {progress, setProgress});
+      case 'formulas': return React.createElement(FormulaCreator, {progress, setProgress});
       case 'leaderboard': return React.createElement(Leaderboard, {authUser});
       case 'settings': return React.createElement(SettingsPage, {progress, setProgress, onSignOut: handleSignOut, authUser, isAdmin});
       case 'admin': return isAdmin ? React.createElement(AdminPanel, {onlineUsers, sendMessage, myId}) : React.createElement(HomeScreen, {onNav: setPage, progress});
@@ -7129,6 +7468,7 @@ function App() {
 
         React.createElement('div', {className:'sidebar-section'}, 'Tools'),
         sidebarItem('flashcards', '\uD83D\uDCDD', 'Flashcards'),
+        sidebarItem('formulas', '\u2728', 'Formula Builder'),
 
         React.createElement('div', {className:'sidebar-section'}, 'Social'),
         sidebarItem('leaderboard', '\uD83C\uDFC6', 'Leaderboard'),
