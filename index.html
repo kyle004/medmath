@@ -5170,6 +5170,7 @@ function AuthScreen({ onAuth }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
@@ -5201,6 +5202,14 @@ function AuthScreen({ onAuth }) {
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
     setLoading(true); setError('');
     try {
+      // Validate invite code against Firebase (skip if no code is set)
+      const codeSnap = await firebaseDb.ref('appConfig/inviteCode').once('value');
+      const validCode = codeSnap.val();
+      if (validCode && inviteCode.trim().toUpperCase() !== String(validCode).toUpperCase()) {
+        setError('Invalid invite code. Ask your classmate or instructor for the code.');
+        setLoading(false);
+        return;
+      }
       const cred = await firebaseAuth.createUserWithEmailAndPassword(email.trim(), password);
       await cred.user.updateProfile({ displayName: displayName.trim() });
       onAuth(cred.user);
@@ -5269,6 +5278,8 @@ function AuthScreen({ onAuth }) {
         React.createElement('h2', {style:{marginBottom:4}}, 'Create Your Account'),
         React.createElement('p', {style:{color:'var(--text2)', fontSize:'0.9rem', marginBottom:16}}, 'Join your classmates on MedMaster.'),
         error && React.createElement('div', {style:{background:'rgba(239,68,68,0.15)', color:'var(--red)', padding:'10px 14px', borderRadius:10, fontSize:'0.85rem', marginBottom:12, textAlign:'left'}}, error),
+        React.createElement('input', {className:'modal-input', placeholder:'Invite code', value:inviteCode, autoComplete:'off',
+          style:{textAlign:'left', marginBottom:8, marginTop:0, letterSpacing:'2px', textTransform:'uppercase', fontFamily:'monospace'}, onChange:e=>setInviteCode(e.target.value), onKeyDown:handleKeyDown}),
         React.createElement('input', {className:'modal-input', placeholder:'Display name (shown to classmates)', value:displayName, maxLength:20,
           style:{textAlign:'left', marginBottom:8, marginTop:0}, onChange:e=>setDisplayName(e.target.value), onKeyDown:handleKeyDown}),
         React.createElement('input', {className:'modal-input', placeholder:'Email', value:email, type:'email', autoComplete:'email',
@@ -5897,7 +5908,21 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
     }
   };
 
-  const tabList = ['users', 'message', 'analytics', 'history'];
+  const tabList = ['users', 'message', 'analytics', 'history', 'config'];
+  const [currentInviteCode, setCurrentInviteCode] = useState('');
+  const [newInviteCode, setNewInviteCode] = useState('');
+  const [inviteCodeSaved, setInviteCodeSaved] = useState(false);
+
+  // Load current invite code
+  useEffect(() => {
+    if (!firebaseDb) return;
+    firebaseDb.ref('appConfig/inviteCode').on('value', snap => {
+      const code = snap.val() || '';
+      setCurrentInviteCode(code);
+      setNewInviteCode(code);
+    });
+    return () => firebaseDb.ref('appConfig/inviteCode').off();
+  }, []);
 
   return React.createElement('div', {className:'admin-panel'},
     // User detail drawer
@@ -5911,7 +5936,7 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
     React.createElement('div', {className:'admin-tabs'},
       tabList.map(t =>
         React.createElement('button', {key:t, className:'admin-tab'+(tab===t?' active':''), onClick:()=>setTab(t)},
-          t === 'users' ? '\uD83D\uDC65 Users (' + online.length + ')' : t === 'message' ? '\uD83D\uDCE3 Message' : t === 'analytics' ? '\uD83D\uDCCA Analytics' : '\uD83D\uDCDC History'
+          t === 'users' ? '\uD83D\uDC65 Users (' + online.length + ')' : t === 'message' ? '\uD83D\uDCE3 Message' : t === 'analytics' ? '\uD83D\uDCCA Analytics' : t === 'history' ? '\uD83D\uDCDC History' : '\u2699\uFE0F Config'
         )
       )
     ),
@@ -6052,6 +6077,48 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
           ),
           React.createElement('div', {style:{color:'var(--text2)', marginTop:2}}, m.text)
         ))
+      ),
+
+      // CONFIG TAB
+      tab === 'config' && React.createElement('div', null,
+        React.createElement('h3', {style:{fontSize:'1rem', marginBottom:16}}, 'App Configuration'),
+
+        // Invite Code Section
+        React.createElement('div', {style:{background:'var(--surface)', borderRadius:12, padding:16, marginBottom:16}},
+          React.createElement('div', {style:{fontWeight:600, marginBottom:8}}, '\uD83D\uDD11 Invite Code'),
+          React.createElement('p', {style:{color:'var(--text3)', fontSize:'0.85rem', marginBottom:12}}, 'Students need this code to create an account. Share it with your cohort.'),
+          currentInviteCode
+            ? React.createElement('div', {style:{background:'var(--bg)', borderRadius:8, padding:'12px 16px', marginBottom:12, display:'flex', justifyContent:'space-between', alignItems:'center'}},
+                React.createElement('span', {style:{fontFamily:'monospace', fontSize:'1.2rem', letterSpacing:3, fontWeight:700, color:'var(--accent)'}}, currentInviteCode),
+                React.createElement('span', {style:{fontSize:'0.8rem', color:'var(--green)'}}, 'Active')
+              )
+            : React.createElement('div', {style:{background:'rgba(239,68,68,0.1)', borderRadius:8, padding:'12px 16px', marginBottom:12, color:'var(--red)', fontSize:'0.9rem'}}, 'No invite code set. Anyone can sign up.'),
+          React.createElement('div', {style:{display:'flex', gap:8}},
+            React.createElement('input', {className:'modal-input', placeholder:'Enter new code...', value:newInviteCode,
+              style:{textAlign:'left', margin:0, flex:1, textTransform:'uppercase', letterSpacing:2, fontFamily:'monospace'},
+              onChange:e=>{ setNewInviteCode(e.target.value); setInviteCodeSaved(false); }}),
+            React.createElement('button', {className:'btn btn-primary', style:{padding:'10px 20px', whiteSpace:'nowrap'},
+              onClick:() => {
+                firebaseDb.ref('appConfig/inviteCode').set(newInviteCode.trim().toUpperCase());
+                setInviteCodeSaved(true);
+                setTimeout(() => setInviteCodeSaved(false), 2000);
+              }}, inviteCodeSaved ? '\u2705 Saved' : 'Update')
+          ),
+          React.createElement('div', {style:{marginTop:10, display:'flex', gap:8}},
+            React.createElement('button', {className:'btn btn-outline btn-sm', onClick:() => {
+              const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+              let code = '';
+              for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+              setNewInviteCode(code);
+              setInviteCodeSaved(false);
+            }}, '\uD83C\uDFB2 Generate Random'),
+            React.createElement('button', {className:'btn btn-outline btn-sm', style:{color:'var(--red)', borderColor:'var(--red)'},
+              onClick:() => {
+                firebaseDb.ref('appConfig/inviteCode').remove();
+                setNewInviteCode('');
+              }}, '\uD83D\uDDD1\uFE0F Remove Code')
+          )
+        )
       )
     )
   );
