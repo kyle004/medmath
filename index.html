@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MedMaster</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233b82f6'/%3E%3Cstop offset='1' stop-color='%236366f1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Cpath d='M32 12c-2.5 0-4.5 1-4.5 3v9h-7c-2 0-3 2-3 4.5s1 4.5 3 4.5h7v9h-7c-2 0-3 2-3 4.5s1 4.5 3 4.5h7v1c0 2 2 3.5 4.5 3.5s4.5-1.5 4.5-3.5v-1h7c2 0 3-2 3-4.5s-1-4.5-3-4.5h-7v-9h7c2 0 3-2 3-4.5s-1-4.5-3-4.5h-7v-9c0-2-2-3-4.5-3z' fill='white' opacity='0.95'/%3E%3C/svg%3E">
-<meta name="app-version" content="20">
+<meta name="app-version" content="21">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <!-- Firebase SDK -->
@@ -7221,15 +7221,26 @@ const DEFAULT_FIREBASE_CONFIG = {
 // ============================
 // AUTH SCREEN (Sign Up / Sign In / Password Reset)
 // ============================
-function AuthScreen({ onAuth }) {
+function AuthScreen({ onAuth, siteConfig }) {
   const [mode, setMode] = useState('signin'); // 'signin' | 'signup' | 'reset'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
+  const [cohort, setCohort] = useState('');
+  const [referral, setReferral] = useState('');
+  const [voucher, setVoucher] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+
+  const authCfg = (siteConfig && siteConfig.auth) || {};
+  const inviteRequired = authCfg.inviteCodeRequired !== false; // default true
+  const showCohort = !!authCfg.cohortFieldEnabled;
+  const showReferral = !!authCfg.referralFieldEnabled;
+  const showVoucher = !!authCfg.vouchingEnabled;
+  const voucherRequired = !!authCfg.vouchingRequired;
+  const cohortLabel = authCfg.cohortLabel || 'Cohort / Section';
 
   const clearForm = () => { setError(''); setLoading(false); };
 
@@ -7270,18 +7281,38 @@ function AuthScreen({ onAuth }) {
     if (!displayName.trim() || displayName.trim().length < 2) { setError('Display name must be at least 2 characters.'); return; }
     if (!email.trim()) { setError('Email is required.'); return; }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+    if (showCohort && !cohort.trim()) { setError(cohortLabel + ' is required.'); return; }
+    if (voucherRequired && !voucher.trim()) { setError('A voucher is required to sign up.'); return; }
     setLoading(true); setError('');
     try {
-      // Validate invite code against Firebase (skip if no code is set)
-      const codeSnap = await firebaseDb.ref('appConfig/inviteCode').once('value');
-      const validCode = codeSnap.val();
-      if (validCode && inviteCode.trim().toUpperCase() !== String(validCode).toUpperCase()) {
-        setError('Invalid invite code. Ask your classmate or instructor for the code.');
-        setLoading(false);
-        return;
+      // Validate invite code (skip if requirement is disabled or no code set)
+      if (inviteRequired) {
+        const codeSnap = await firebaseDb.ref('appConfig/inviteCode').once('value');
+        const validCode = codeSnap.val();
+        if (validCode && inviteCode.trim().toUpperCase() !== String(validCode).toUpperCase()) {
+          setError('Invalid invite code. Ask your classmate or instructor for the code.');
+          setLoading(false);
+          return;
+        }
       }
       const cred = await firebaseAuth.createUserWithEmailAndPassword(email.trim(), password);
       await cred.user.updateProfile({ displayName: displayName.trim() });
+      // Write /userMeta with collected info and initial status
+      try {
+        const SUPER = 'codingky@gmail.com';
+        const isSuper = (cred.user.email || '').toLowerCase() === SUPER;
+        const initStatus = (!isSuper && authCfg.manualApprovalEnabled) ? 'pending' : 'approved';
+        await firebaseDb.ref('userMeta/' + cred.user.uid).set({
+          username: displayName.trim(),
+          email: (cred.user.email || '').toLowerCase(),
+          status: initStatus,
+          cohort: cohort.trim() || null,
+          referral: referral.trim() || null,
+          voucher: voucher.trim() || null,
+          signupAt: firebase.database.ServerValue.TIMESTAMP,
+          provider: 'password'
+        });
+      } catch(metaErr) { /* non-fatal — useUserMeta will retry auto-create */ }
       onAuth(cred.user);
     } catch(e) {
       const msgs = {
@@ -7361,14 +7392,23 @@ function AuthScreen({ onAuth }) {
         React.createElement('h2', {style:{marginBottom:4}}, 'Create Your Account'),
         React.createElement('p', {style:{color:'var(--text2)', fontSize:'0.9rem', marginBottom:16}}, 'Join your classmates on MedMaster.'),
         error && React.createElement('div', {style:{background:'rgba(239,68,68,0.15)', color:'var(--red)', padding:'10px 14px', borderRadius:10, fontSize:'0.85rem', marginBottom:12, textAlign:'left'}}, error),
-        React.createElement('input', {className:'modal-input', placeholder:'Invite code', value:inviteCode, autoComplete:'off',
+        inviteRequired && React.createElement('input', {className:'modal-input', placeholder:'Invite code', value:inviteCode, autoComplete:'off',
           style:{textAlign:'left', marginBottom:8, marginTop:0, letterSpacing:'2px', textTransform:'uppercase', fontFamily:'monospace'}, onChange:e=>setInviteCode(e.target.value), onKeyDown:handleKeyDown}),
         React.createElement('input', {className:'modal-input', placeholder:'Display name (shown to classmates)', value:displayName, maxLength:20,
           style:{textAlign:'left', marginBottom:8, marginTop:0}, onChange:e=>setDisplayName(e.target.value), onKeyDown:handleKeyDown}),
         React.createElement('input', {className:'modal-input', placeholder:'Email', value:email, type:'email', autoComplete:'email',
           style:{textAlign:'left', marginBottom:8, marginTop:0}, onChange:e=>setEmail(e.target.value), onKeyDown:handleKeyDown}),
         React.createElement('input', {className:'modal-input', placeholder:'Password (6+ characters)', value:password, type:'password', autoComplete:'new-password',
-          style:{textAlign:'left', marginBottom:16, marginTop:0}, onChange:e=>setPassword(e.target.value), onKeyDown:handleKeyDown}),
+          style:{textAlign:'left', marginBottom:8, marginTop:0}, onChange:e=>setPassword(e.target.value), onKeyDown:handleKeyDown}),
+        showCohort && React.createElement('input', {className:'modal-input', placeholder:cohortLabel, value:cohort, maxLength:60,
+          style:{textAlign:'left', marginBottom:8, marginTop:0}, onChange:e=>setCohort(e.target.value), onKeyDown:handleKeyDown}),
+        showReferral && React.createElement('input', {className:'modal-input', placeholder:'Who invited you / how did you hear about this?', value:referral, maxLength:120,
+          style:{textAlign:'left', marginBottom:8, marginTop:0}, onChange:e=>setReferral(e.target.value), onKeyDown:handleKeyDown}),
+        showVoucher && React.createElement('input', {className:'modal-input', placeholder: voucherRequired ? 'Voucher\u2019s name (required)' : 'Voucher\u2019s name (optional)', value:voucher, maxLength:60,
+          style:{textAlign:'left', marginBottom:8, marginTop:0}, onChange:e=>setVoucher(e.target.value), onKeyDown:handleKeyDown}),
+        authCfg.manualApprovalEnabled && React.createElement('div', {style:{fontSize:'0.78rem', color:'var(--text3)', marginBottom:12, padding:'8px 10px', background:'rgba(99,102,241,0.08)', borderRadius:8, textAlign:'left'}},
+          '\u2139\uFE0F New accounts are reviewed by your cohort admin before access is granted. You\u2019ll see a waiting screen until approved.'),
+        !authCfg.manualApprovalEnabled && React.createElement('div', {style:{height:8}}),
         React.createElement('button', {className:'btn btn-primary', style:{width:'100%', padding:'12px', fontSize:'1rem', marginBottom:12},
           disabled:loading, onClick:handleSignUp}, loading ? 'Creating account...' : 'Sign Up'),
         React.createElement('div', {style:{fontSize:'0.85rem', textAlign:'center'}},
@@ -8111,7 +8151,65 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
     }
   };
 
-  const tabList = ['users', 'rooms', 'message', 'analytics', 'history', 'config'];
+  const tabList = ['users', 'auth', 'rooms', 'message', 'analytics', 'history', 'config'];
+
+  // --- Auth/verification tab state ---
+  const [pendingUsers, setPendingUsers] = useState([]);
+  const [allMeta, setAllMeta] = useState({});
+  const [authNotice, setAuthNotice] = useState('');
+  const pendingCount = pendingUsers.length;
+
+  // Load /userMeta whenever the auth tab is open (and on mount so the tab badge stays current)
+  useEffect(() => {
+    if (!firebaseDb) return;
+    const ref = firebaseDb.ref('userMeta');
+    const onVal = ref.on('value', snap => {
+      const data = snap.val() || {};
+      setAllMeta(data);
+      const list = Object.entries(data)
+        .filter(([id, m]) => m && m.status === 'pending')
+        .map(([id, m]) => ({id, ...m}))
+        .sort((a, b) => (a.signupAt || 0) - (b.signupAt || 0));
+      setPendingUsers(list);
+    });
+    return () => ref.off('value', onVal);
+  }, []);
+
+  const approveUser = (uid) => {
+    if (!firebaseDb) return;
+    firebaseDb.ref('userMeta/' + uid).update({
+      status: 'approved',
+      approvedAt: firebase.database.ServerValue.TIMESTAMP,
+      approvedBy: myId || 'admin'
+    });
+    setAuthNotice('Approved.');
+    setTimeout(() => setAuthNotice(''), 2500);
+  };
+
+  const rejectUser = (uid) => {
+    if (!firebaseDb) return;
+    firebaseDb.ref('userMeta/' + uid).update({
+      status: 'rejected',
+      rejectedAt: firebase.database.ServerValue.TIMESTAMP
+    });
+    setAuthNotice('Rejected.');
+    setTimeout(() => setAuthNotice(''), 2500);
+  };
+
+  const reopenApproval = (uid) => {
+    if (!firebaseDb) return;
+    firebaseDb.ref('userMeta/' + uid).update({ status: 'pending' });
+  };
+
+  const setAuthFlag = (key, value) => {
+    if (!firebaseDb) return;
+    firebaseDb.ref('appConfig/siteConfig/auth/' + key).set(value);
+  };
+
+  const generateInviteCode = () => {
+    const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+    setNewInviteCode(code);
+  };
 
   // --- Room Management State ---
   const [adminRooms, setAdminRooms] = useState({});
@@ -8209,7 +8307,17 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
     },
     appearance: { appName: 'MedMaster', appEmoji: '💊', subtitle: '', accentColor: '', welcomeMessage: '' },
     maintenance: { enabled: false, message: 'Site is under maintenance. Check back soon!' },
-    announcement: { enabled: false, text: '', style: 'info' }
+    announcement: { enabled: false, text: '', style: 'info' },
+    auth: {
+      inviteCodeRequired: true,
+      manualApprovalEnabled: false,
+      vouchingEnabled: false,
+      vouchingRequired: false,
+      cohortFieldEnabled: true,
+      referralFieldEnabled: true,
+      cohortLabel: 'Cohort / Section',
+      pendingMessage: ''
+    }
   };
   const [adminSiteConfig, setAdminSiteConfig] = useState(DEFAULT_SITE_CONFIG);
 
@@ -8228,7 +8336,8 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
         features: { ...DEFAULT_SITE_CONFIG.features, ...(val.features || {}) },
         appearance: { ...DEFAULT_SITE_CONFIG.appearance, ...(val.appearance || {}) },
         maintenance: { ...DEFAULT_SITE_CONFIG.maintenance, ...(val.maintenance || {}) },
-        announcement: { ...DEFAULT_SITE_CONFIG.announcement, ...(val.announcement || {}) }
+        announcement: { ...DEFAULT_SITE_CONFIG.announcement, ...(val.announcement || {}) },
+        auth: { ...DEFAULT_SITE_CONFIG.auth, ...(val.auth || {}) }
       });
     });
     return () => { firebaseDb.ref('appConfig/inviteCode').off(); firebaseDb.ref('appConfig/siteConfig').off(); };
@@ -8246,7 +8355,7 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
     React.createElement('div', {className:'admin-tabs'},
       tabList.map(t =>
         React.createElement('button', {key:t, className:'admin-tab'+(tab===t?' active':''), onClick:()=>setTab(t)},
-          t === 'users' ? '\uD83D\uDC65 Users (' + online.length + '/' + allUsers.length + ')' : t === 'rooms' ? '\uD83D\uDCAC Rooms' : t === 'message' ? '\uD83D\uDCE3 Message' : t === 'analytics' ? '\uD83D\uDCCA Analytics' : t === 'history' ? '\uD83D\uDCDC History' : '\u2699\uFE0F Config'
+          t === 'users' ? '\uD83D\uDC65 Users (' + online.length + '/' + allUsers.length + ')' : t === 'auth' ? '\uD83D\uDEE1\uFE0F Auth' + (pendingCount > 0 ? ' (' + pendingCount + ')' : '') : t === 'rooms' ? '\uD83D\uDCAC Rooms' : t === 'message' ? '\uD83D\uDCE3 Message' : t === 'analytics' ? '\uD83D\uDCCA Analytics' : t === 'history' ? '\uD83D\uDCDC History' : '\u2699\uFE0F Config'
         )
       )
     ),
@@ -8319,6 +8428,185 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
           );
         })
       ),
+
+      // AUTH TAB — verification, approvals, invite code, vouch system
+      tab === 'auth' && (() => {
+        const ac = adminSiteConfig.auth || {};
+        const setFlag = (k, v) => setAuthFlag(k, v);
+        const toggleStyle = (on) => ({
+          width:44, height:24, borderRadius:12, border:'none', cursor:'pointer', position:'relative',
+          background: on ? 'var(--green)' : 'var(--surface2)', transition:'background 0.2s', flexShrink:0
+        });
+        const dotStyle = (on) => ({
+          width:18, height:18, borderRadius:'50%', background:'#fff', position:'absolute', top:3,
+          left: on ? 23 : 3, transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.3)'
+        });
+        const Toggle = (on, onChange) => React.createElement('button', {style:toggleStyle(on), onClick:()=>onChange(!on)},
+          React.createElement('div', {style:dotStyle(on)})
+        );
+        const ToggleRow = (label, desc, value, key) => React.createElement('div', {key, style:{display:'flex', alignItems:'flex-start', gap:12, padding:'10px 0', borderBottom:'1px solid var(--surface2)'}},
+          React.createElement('div', {style:{flex:1}},
+            React.createElement('div', {style:{fontWeight:600, fontSize:'0.9rem'}}, label),
+            React.createElement('div', {style:{fontSize:'0.78rem', color:'var(--text3)', marginTop:2}}, desc)
+          ),
+          Toggle(value, (v)=>setFlag(key, v))
+        );
+
+        const allMetaList = Object.entries(allMeta).map(([id, m]) => ({id, ...(m||{})}));
+        const approvedList = allMetaList.filter(u => u.status === 'approved');
+        const rejectedList = allMetaList.filter(u => u.status === 'rejected');
+        const vouchedList = approvedList.filter(u => u.voucher);
+
+        const formatTs = (ts) => ts ? new Date(ts).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}) : '—';
+
+        return React.createElement('div', null,
+          authNotice && React.createElement('div', {style:{background:'rgba(34,197,94,0.15)', color:'var(--green)', padding:'8px 12px', borderRadius:8, fontSize:'0.85rem', marginBottom:12}}, '\u2705 ' + authNotice),
+
+          // ===== Verification controls =====
+          React.createElement('div', {style:{background:'var(--surface)', borderRadius:12, padding:16, marginBottom:16}},
+            React.createElement('div', {style:{fontWeight:700, fontSize:'1rem', marginBottom:4, display:'flex', alignItems:'center', gap:8}}, '\uD83D\uDEE1\uFE0F Verification Layers'),
+            React.createElement('div', {style:{fontSize:'0.82rem', color:'var(--text3)', marginBottom:8}}, 'Stack as many gates as you need. All toggle live for new signups.'),
+            ToggleRow('Require invite code', 'Signup blocked unless they enter the cohort invite code below.', !!ac.inviteCodeRequired, 'inviteCodeRequired'),
+            ToggleRow('Manual approval queue', 'New accounts land here as Pending. Until you approve, they only see the waiting screen.', !!ac.manualApprovalEnabled, 'manualApprovalEnabled'),
+            ToggleRow('Ask for cohort/section', 'Adds a free-text field to signup so you can spot non-students at a glance.', !!ac.cohortFieldEnabled, 'cohortFieldEnabled'),
+            ToggleRow('Ask for referral', '"Who invited you / how did you hear about this?" — helpful context during review.', !!ac.referralFieldEnabled, 'referralFieldEnabled'),
+            ToggleRow('Ask for voucher', 'New users name an existing approved member. You can revoke the voucher\u2019s privileges if they vouch for the wrong person.', !!ac.vouchingEnabled, 'vouchingEnabled'),
+            ac.vouchingEnabled && ToggleRow('Voucher required (not optional)', 'If on, signup is blocked without a voucher name.', !!ac.vouchingRequired, 'vouchingRequired')
+          ),
+
+          // ===== Invite code =====
+          React.createElement('div', {style:{background:'var(--surface)', borderRadius:12, padding:16, marginBottom:16}},
+            React.createElement('div', {style:{fontWeight:700, fontSize:'1rem', marginBottom:4, display:'flex', alignItems:'center', gap:8}}, '\uD83D\uDD11 Invite Code'),
+            React.createElement('div', {style:{fontSize:'0.82rem', color:'var(--text3)', marginBottom:10}},
+              ac.inviteCodeRequired ? 'New users must enter this code on signup.' : 'Invite code requirement is OFF. Turn it on above to enforce.'),
+            currentInviteCode && React.createElement('div', {style:{padding:'8px 12px', background:'var(--bg)', borderRadius:8, marginBottom:10, display:'flex', alignItems:'center', gap:10}},
+              React.createElement('span', {style:{color:'var(--text3)', fontSize:'0.78rem'}}, 'Current:'),
+              React.createElement('span', {style:{fontFamily:'monospace', fontSize:'1.1rem', letterSpacing:3, fontWeight:700, color:'var(--accent)'}}, currentInviteCode),
+              React.createElement('button', {className:'btn btn-outline btn-sm', style:{marginLeft:'auto'},
+                onClick:()=>{ navigator.clipboard.writeText(currentInviteCode); }}, '\uD83D\uDCCB Copy')
+            ),
+            React.createElement('div', {style:{display:'flex', gap:8, flexWrap:'wrap'}},
+              React.createElement('input', {type:'text', placeholder:'New invite code', value:newInviteCode, maxLength:20,
+                style:{flex:'1 1 180px', padding:'8px 12px', borderRadius:8, border:'1px solid var(--surface2)', background:'var(--bg)', color:'var(--text)', fontSize:'0.95rem', fontFamily:'monospace', textTransform:'uppercase', letterSpacing:'2px'},
+                onChange:e=>{ setNewInviteCode(e.target.value); setInviteCodeSaved(false); }}),
+              React.createElement('button', {className:'btn btn-outline', onClick:generateInviteCode}, '\uD83C\uDFB2 Random'),
+              React.createElement('button', {className:'btn btn-primary', disabled:!newInviteCode.trim() || newInviteCode.trim().toUpperCase() === currentInviteCode, onClick:()=>{
+                firebaseDb.ref('appConfig/inviteCode').set(newInviteCode.trim().toUpperCase());
+                setInviteCodeSaved(true);
+                setTimeout(()=>setInviteCodeSaved(false), 2500);
+              }}, inviteCodeSaved ? '\u2705 Saved' : 'Save')
+            ),
+            currentInviteCode && React.createElement('button', {className:'btn btn-outline btn-sm', style:{marginTop:10, color:'var(--red)', borderColor:'var(--red)'},
+              onClick:()=>{ if (confirm('Remove the invite code? Anyone could sign up while it\u2019s missing (unless approval queue is on).')) { firebaseDb.ref('appConfig/inviteCode').remove(); setNewInviteCode(''); } }}, '\uD83D\uDDD1\uFE0F Remove code')
+          ),
+
+          // ===== Pending approvals =====
+          React.createElement('div', {style:{background:'var(--surface)', borderRadius:12, padding:16, marginBottom:16}},
+            React.createElement('div', {style:{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8}},
+              React.createElement('div', {style:{fontWeight:700, fontSize:'1rem', display:'flex', alignItems:'center', gap:8}},
+                '\u23F3 Pending Approvals',
+                pendingUsers.length > 0 && React.createElement('span', {style:{background:'var(--accent)', color:'white', borderRadius:10, padding:'2px 8px', fontSize:'0.75rem'}}, pendingUsers.length)
+              )
+            ),
+            !ac.manualApprovalEnabled && React.createElement('div', {style:{fontSize:'0.82rem', color:'var(--text3)', marginBottom:10, padding:'8px 10px', background:'rgba(245,158,11,0.1)', borderRadius:8, border:'1px solid rgba(245,158,11,0.3)'}},
+              '\u26A0\uFE0F Manual approval is OFF. New signups are auto-approved. Toggle it on above to start gating.'),
+            pendingUsers.length === 0
+              ? React.createElement('div', {style:{textAlign:'center', padding:20, color:'var(--text3)', fontSize:'0.9rem'}}, 'Nobody waiting. \uD83C\uDF89')
+              : pendingUsers.map(u => React.createElement('div', {key:u.id, style:{background:'var(--bg)', borderRadius:10, padding:12, marginBottom:10, border:'1px solid var(--surface2)'}},
+                  React.createElement('div', {style:{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8, marginBottom:6}},
+                    React.createElement('div', null,
+                      React.createElement('div', {style:{fontWeight:700, fontSize:'1rem'}}, u.username || 'Anonymous'),
+                      React.createElement('div', {style:{fontSize:'0.8rem', color:'var(--text3)'}}, u.email || u.id)
+                    ),
+                    React.createElement('div', {style:{fontSize:'0.75rem', color:'var(--text3)', whiteSpace:'nowrap'}}, formatTs(u.signupAt))
+                  ),
+                  // Submitted info
+                  React.createElement('div', {style:{display:'flex', flexWrap:'wrap', gap:8, fontSize:'0.82rem', marginBottom:10}},
+                    u.cohort && React.createElement('span', {style:{background:'var(--surface)', padding:'3px 8px', borderRadius:6}},
+                      React.createElement('span', {style:{color:'var(--text3)'}}, 'cohort: '), React.createElement('strong', null, u.cohort)),
+                    u.referral && React.createElement('span', {style:{background:'var(--surface)', padding:'3px 8px', borderRadius:6}},
+                      React.createElement('span', {style:{color:'var(--text3)'}}, 'referral: '), React.createElement('strong', null, u.referral)),
+                    u.voucher && React.createElement('span', {style:{background:'var(--surface)', padding:'3px 8px', borderRadius:6}},
+                      React.createElement('span', {style:{color:'var(--text3)'}}, 'voucher: '), React.createElement('strong', null, u.voucher)),
+                    u.provider && React.createElement('span', {style:{background:'var(--surface)', padding:'3px 8px', borderRadius:6, color:'var(--text3)'}},
+                      'via ' + u.provider),
+                    !u.cohort && !u.referral && !u.voucher && React.createElement('span', {style:{color:'var(--text3)', fontStyle:'italic'}},
+                      'No info submitted (likely Google sign-in)')
+                  ),
+                  // Actions
+                  React.createElement('div', {style:{display:'flex', gap:8, flexWrap:'wrap'}},
+                    React.createElement('button', {className:'btn btn-primary btn-sm', onClick:()=>approveUser(u.id)}, '\u2705 Approve'),
+                    React.createElement('button', {className:'btn btn-outline btn-sm', style:{color:'var(--red)', borderColor:'var(--red)'}, onClick:()=>{
+                      if (confirm('Reject ' + (u.username || u.email) + '? They\u2019ll see a rejected screen and can\u2019t access the app.')) rejectUser(u.id);
+                    }}, '\u274C Reject'),
+                    React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>setSelectedUser({id:u.id, username:u.username, online:false, ...u})}, '\uD83D\uDC64 More')
+                  )
+                ))
+          ),
+
+          // ===== Rejected users (collapsible) =====
+          rejectedList.length > 0 && React.createElement('details', {style:{background:'var(--surface)', borderRadius:12, padding:16, marginBottom:16}},
+            React.createElement('summary', {style:{cursor:'pointer', fontWeight:700, fontSize:'0.95rem'}},
+              '\uD83D\uDEAB Rejected (' + rejectedList.length + ')'),
+            React.createElement('div', {style:{marginTop:10}},
+              rejectedList.map(u => React.createElement('div', {key:u.id, style:{padding:'8px 0', borderBottom:'1px solid var(--surface2)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:8}},
+                React.createElement('div', null,
+                  React.createElement('div', {style:{fontWeight:600, fontSize:'0.9rem'}}, u.username || 'Anonymous'),
+                  React.createElement('div', {style:{fontSize:'0.78rem', color:'var(--text3)'}}, (u.email || u.id) + ' \u2022 ' + formatTs(u.rejectedAt || u.signupAt))
+                ),
+                React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>reopenApproval(u.id)}, 'Reopen')
+              ))
+            )
+          ),
+
+          // ===== Vouch ledger =====
+          ac.vouchingEnabled && React.createElement('div', {style:{background:'var(--surface)', borderRadius:12, padding:16, marginBottom:16}},
+            React.createElement('div', {style:{fontWeight:700, fontSize:'1rem', marginBottom:4, display:'flex', alignItems:'center', gap:8}}, '\uD83E\uDD1D Vouch Ledger'),
+            React.createElement('div', {style:{fontSize:'0.82rem', color:'var(--text3)', marginBottom:10}},
+              'Who vouched for whom. If a voucher misuses their privilege, you can revoke approval below.'),
+            vouchedList.length === 0
+              ? React.createElement('div', {style:{color:'var(--text3)', fontSize:'0.9rem', padding:8}}, 'No vouches recorded yet.')
+              : vouchedList.map(u => React.createElement('div', {key:u.id, style:{padding:'8px 0', borderBottom:'1px solid var(--surface2)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, fontSize:'0.88rem'}},
+                  React.createElement('div', null,
+                    React.createElement('strong', null, u.username || 'Anonymous'),
+                    React.createElement('span', {style:{color:'var(--text3)'}}, ' was vouched for by '),
+                    React.createElement('strong', {style:{color:'var(--accent)'}}, u.voucher)
+                  ),
+                  React.createElement('button', {className:'btn btn-outline btn-sm', style:{color:'var(--red)', borderColor:'var(--red)', fontSize:'0.75rem'},
+                    onClick:()=>{ if (confirm('Revoke approval for ' + (u.username||'this user') + '? They\u2019ll go back to pending.')) reopenApproval(u.id); }}, 'Revoke')
+                ))
+          ),
+
+          // ===== Pending message =====
+          ac.manualApprovalEnabled && React.createElement('div', {style:{background:'var(--surface)', borderRadius:12, padding:16, marginBottom:16}},
+            React.createElement('div', {style:{fontWeight:700, fontSize:'1rem', marginBottom:4, display:'flex', alignItems:'center', gap:8}}, '\uD83D\uDCAC Pending Screen Message'),
+            React.createElement('div', {style:{fontSize:'0.82rem', color:'var(--text3)', marginBottom:10}}, 'Custom message shown to users who are awaiting approval. Leave empty for the default.'),
+            React.createElement('textarea', {value:ac.pendingMessage || '', placeholder:'e.g. "Approvals usually happen within a day. Check our Discord #access channel if it\u2019s been longer."', maxLength:500,
+              style:{width:'100%', padding:'10px 12px', background:'var(--bg)', color:'var(--text)', border:'1px solid var(--surface2)', borderRadius:8, fontSize:'0.88rem', minHeight:70, resize:'vertical'},
+              onChange:e=>setFlag('pendingMessage', e.target.value)}),
+            React.createElement('div', {style:{marginTop:8}},
+              React.createElement('label', {style:{display:'flex', alignItems:'center', gap:8, fontSize:'0.85rem', color:'var(--text2)'}},
+                'Cohort field label:',
+                React.createElement('input', {type:'text', value:ac.cohortLabel || '', maxLength:40, placeholder:'Cohort / Section',
+                  style:{flex:1, padding:'6px 10px', background:'var(--bg)', color:'var(--text)', border:'1px solid var(--surface2)', borderRadius:6, fontSize:'0.85rem'},
+                  onChange:e=>setFlag('cohortLabel', e.target.value)})
+              )
+            )
+          ),
+
+          // ===== Stats footer =====
+          React.createElement('div', {style:{display:'flex', gap:10, flexWrap:'wrap', fontSize:'0.85rem', color:'var(--text3)', padding:'8px 0'}},
+            React.createElement('span', {style:{background:'var(--surface)', borderRadius:6, padding:'4px 10px'}},
+              React.createElement('strong', {style:{color:'var(--accent)'}}, allMetaList.length), ' tracked accounts'),
+            React.createElement('span', {style:{background:'var(--surface)', borderRadius:6, padding:'4px 10px'}},
+              React.createElement('strong', {style:{color:'var(--green)'}}, approvedList.length), ' approved'),
+            React.createElement('span', {style:{background:'var(--surface)', borderRadius:6, padding:'4px 10px'}},
+              React.createElement('strong', {style:{color:'#f59e0b'}}, pendingUsers.length), ' pending'),
+            React.createElement('span', {style:{background:'var(--surface)', borderRadius:6, padding:'4px 10px'}},
+              React.createElement('strong', {style:{color:'var(--red)'}}, rejectedList.length), ' rejected')
+          )
+        );
+      })(),
 
       // ROOMS TAB — full admin management
       tab === 'rooms' && React.createElement('div', null,
@@ -8905,6 +9193,134 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// ============================
+// USER METADATA HOOK — auth status, cohort, referral, voucher
+// Auto-creates a record on first sign-in. Existing accounts (>1m old) are grandfathered as approved.
+// ============================
+function useUserMeta(authUser, firebaseReady, siteConfigLoaded, authCfg, isSuperAdmin) {
+  const [userMeta, setUserMeta] = useState(null);
+  const [metaLoading, setMetaLoading] = useState(true);
+
+  useEffect(() => {
+    if (!firebaseReady || !firebaseDb || !authUser) {
+      setUserMeta(null);
+      setMetaLoading(!authUser ? false : true);
+      return;
+    }
+    if (!siteConfigLoaded) { setMetaLoading(true); return; } // wait for siteConfig before deciding default status
+
+    const ref = firebaseDb.ref('userMeta/' + authUser.uid);
+    let active = true;
+
+    const onVal = ref.on('value', snap => {
+      if (!active) return;
+      const data = snap.val();
+      if (data) {
+        setUserMeta(data);
+        setMetaLoading(false);
+        return;
+      }
+      // No record — auto-create
+      const now = Date.now();
+      const creation = (authUser.metadata && authUser.metadata.creationTime)
+        ? Date.parse(authUser.metadata.creationTime) : now;
+      const isNewSignup = (now - creation) < 60000;
+      let initStatus = 'approved';
+      if (!isSuperAdmin && isNewSignup && authCfg && authCfg.manualApprovalEnabled) {
+        initStatus = 'pending';
+      }
+      const seed = {
+        username: authUser.displayName || 'Anonymous',
+        email: authUser.email || '',
+        status: initStatus,
+        signupAt: firebase.database.ServerValue.TIMESTAMP,
+        provider: (authUser.providerData && authUser.providerData[0]) ? authUser.providerData[0].providerId : 'unknown'
+      };
+      ref.set(seed).then(() => {
+        if (active) { setUserMeta({...seed, signupAt: now}); setMetaLoading(false); }
+      }).catch(() => {
+        if (active) { setUserMeta({...seed, signupAt: now}); setMetaLoading(false); }
+      });
+    });
+
+    return () => {
+      active = false;
+      ref.off('value', onVal);
+    };
+  }, [authUser, firebaseReady, siteConfigLoaded, isSuperAdmin]);
+
+  return { userMeta, metaLoading };
+}
+
+// ============================
+// PENDING APPROVAL SCREEN — shown when status is pending or rejected
+// Lets the user fill in cohort/referral/voucher info and watch for status changes.
+// ============================
+function PendingScreen({ authUser, userMeta, siteConfig, onSignOut }) {
+  const status = (userMeta && userMeta.status) || 'pending';
+  const authCfg = (siteConfig && siteConfig.auth) || {};
+  const cohortLabel = authCfg.cohortLabel || 'Cohort / Section';
+  const customMsg = (authCfg.pendingMessage || '').trim();
+
+  const [cohort, setCohort] = useState((userMeta && userMeta.cohort) || '');
+  const [referral, setReferral] = useState((userMeta && userMeta.referral) || '');
+  const [voucher, setVoucher] = useState((userMeta && userMeta.voucher) || '');
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+
+  const canEdit = status === 'pending';
+  const showCohort = !!authCfg.cohortFieldEnabled;
+  const showReferral = !!authCfg.referralFieldEnabled;
+  const showVoucher = !!authCfg.vouchingEnabled;
+  const hasAnyField = showCohort || showReferral || showVoucher;
+
+  const saveInfo = () => {
+    if (!firebaseDb || !authUser) return;
+    setSaving(true);
+    const updates = {};
+    if (showCohort) updates.cohort = cohort.trim();
+    if (showReferral) updates.referral = referral.trim();
+    if (showVoucher) updates.voucher = voucher.trim();
+    firebaseDb.ref('userMeta/' + authUser.uid).update(updates).then(() => {
+      setSavedAt(Date.now());
+      setSaving(false);
+    }).catch(() => setSaving(false));
+  };
+
+  return React.createElement('div', {className:'modal-overlay'},
+    React.createElement('div', {className:'modal-box', style:{maxWidth:480}},
+      React.createElement('div', {style:{fontSize:'2.5rem', marginBottom:8}}, status === 'rejected' ? '🚫' : '⏳'),
+      React.createElement('h2', {style:{marginBottom:4}},
+        status === 'rejected' ? 'Application not approved' : 'Waiting for approval'),
+      React.createElement('p', {style:{color:'var(--text2)', fontSize:'0.9rem', marginBottom:14, textAlign:'left', lineHeight:1.5}},
+        status === 'rejected'
+          ? 'Your account was not approved. If you think this is a mistake, contact your cohort admin.'
+          : (customMsg || 'Thanks for signing up! Your account is waiting for cohort admin approval. You’ll get access as soon as it’s reviewed.')
+      ),
+      // Submission summary
+      React.createElement('div', {style:{background:'var(--surface)', borderRadius:10, padding:12, marginBottom:14, textAlign:'left', fontSize:'0.85rem'}},
+        React.createElement('div', {style:{color:'var(--text3)', marginBottom:6, fontWeight:600, fontSize:'0.78rem', textTransform:'uppercase', letterSpacing:'0.5px'}}, 'Your account'),
+        React.createElement('div', {style:{marginBottom:3}}, React.createElement('strong', null, 'Name: '), (userMeta && userMeta.username) || authUser.displayName || '—'),
+        React.createElement('div', null, React.createElement('strong', null, 'Email: '), (userMeta && userMeta.email) || authUser.email || '—')
+      ),
+      // Editable fields if pending
+      canEdit && hasAnyField && React.createElement('div', {style:{marginBottom:14}},
+        React.createElement('div', {style:{color:'var(--text3)', marginBottom:8, fontSize:'0.8rem', textAlign:'left'}},
+          'Add or update info to help your admin verify you faster:'),
+        showCohort && React.createElement('input', {className:'modal-input', placeholder:cohortLabel, value:cohort,
+          style:{textAlign:'left', marginBottom:8, marginTop:0}, onChange:e=>setCohort(e.target.value)}),
+        showReferral && React.createElement('input', {className:'modal-input', placeholder:'Who invited you / how did you hear about this?', value:referral,
+          style:{textAlign:'left', marginBottom:8, marginTop:0}, onChange:e=>setReferral(e.target.value)}),
+        showVoucher && React.createElement('input', {className:'modal-input', placeholder:'Who vouches for you? (their name)', value:voucher,
+          style:{textAlign:'left', marginBottom:8, marginTop:0}, onChange:e=>setVoucher(e.target.value)}),
+        React.createElement('button', {className:'btn btn-primary', style:{width:'100%', padding:'10px', marginTop:4},
+          disabled:saving, onClick:saveInfo}, saving ? 'Saving…' : (savedAt ? '✅ Saved' : 'Save info'))
+      ),
+      React.createElement('button', {className:'btn btn-outline', style:{width:'100%', padding:'10px'}, onClick:onSignOut}, 'Sign Out')
+    )
+  );
+}
+
 function App() {
   const [page, setPage] = useState('home');
   const [showCalc, setShowCalc] = useState(false);
@@ -8971,7 +9387,17 @@ function App() {
       welcomeMessage: ''
     },
     maintenance: { enabled: false, message: 'Site is under maintenance. Check back soon!' },
-    announcement: { enabled: false, text: '', style: 'info' }
+    announcement: { enabled: false, text: '', style: 'info' },
+    auth: {
+      inviteCodeRequired: true,
+      manualApprovalEnabled: false,
+      vouchingEnabled: false,
+      vouchingRequired: false,
+      cohortFieldEnabled: true,
+      referralFieldEnabled: true,
+      cohortLabel: 'Cohort / Section',
+      pendingMessage: ''
+    }
   };
   const [siteConfig, setSiteConfig] = useState(DEFAULT_SITE_CONFIG);
   useEffect(() => {
@@ -8984,13 +9410,22 @@ function App() {
         features: { ...DEFAULT_SITE_CONFIG.features, ...(val.features || {}) },
         appearance: { ...DEFAULT_SITE_CONFIG.appearance, ...(val.appearance || {}) },
         maintenance: { ...DEFAULT_SITE_CONFIG.maintenance, ...(val.maintenance || {}) },
-        announcement: { ...DEFAULT_SITE_CONFIG.announcement, ...(val.announcement || {}) }
+        announcement: { ...DEFAULT_SITE_CONFIG.announcement, ...(val.announcement || {}) },
+        auth: { ...DEFAULT_SITE_CONFIG.auth, ...(val.auth || {}) }
       });
     });
     return () => ref.off('value', onVal);
   }, [firebaseReady]);
 
+  // Track whether siteConfig has been loaded from Firebase (vs default) — used by useUserMeta to avoid premature decisions
+  const [siteConfigLoaded, setSiteConfigLoaded] = useState(false);
+  useEffect(() => {
+    if (!firebaseReady || !firebaseDb) return;
+    firebaseDb.ref('appConfig/siteConfig').once('value', () => setSiteConfigLoaded(true));
+  }, [firebaseReady]);
+
   // Hooks only activate when auth user + firebase are ready
+  const { userMeta, metaLoading } = useUserMeta(authUser, firebaseReady, siteConfigLoaded, siteConfig.auth, isSuperAdmin);
   const { onlineUsers, onlineCount, myId } = usePresence(authUser, firebaseReady, page, isAdmin);
   const { messages, sendMessage } = useMessages(firebaseReady);
   useProgressSync(progress, setProgress, authUser, firebaseReady);
@@ -9078,7 +9513,14 @@ function App() {
 
   // Auth gate — if not signed in, show ONLY the auth screen (no app behind it)
   if (!authUser && firebaseReady) {
-    return React.createElement(AuthScreen, {onAuth: handleAuth});
+    return React.createElement(AuthScreen, {onAuth: handleAuth, siteConfig});
+  }
+
+  // Pending approval gate — block users whose accounts haven't been approved yet
+  // Super admin always bypasses. Only enforced when manualApprovalEnabled is on.
+  if (authUser && firebaseReady && !isSuperAdmin && siteConfig.auth && siteConfig.auth.manualApprovalEnabled
+      && userMeta && (userMeta.status === 'pending' || userMeta.status === 'rejected')) {
+    return React.createElement(PendingScreen, {authUser, userMeta, siteConfig, onSignOut: handleSignOut});
   }
 
   // Maintenance mode gate — block non-admins

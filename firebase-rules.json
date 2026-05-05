@@ -30,6 +30,26 @@
         ".write": "auth != null && auth.uid === $uid"
       }
     },
+    "userMeta": {
+      ".read": "auth != null && auth.token.email === 'codingky@gmail.com'",
+      ".indexOn": ["status", "signupAt"],
+      "$uid": {
+        ".read": "auth != null && (auth.uid === $uid || auth.token.email === 'codingky@gmail.com')",
+        ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'codingky@gmail.com')",
+        "status": {
+          ".validate": "auth.token.email === 'codingky@gmail.com' || newData.val() === 'pending' || newData.val() === 'rejected'"
+        },
+        "approvedBy": {
+          ".validate": "auth.token.email === 'codingky@gmail.com'"
+        },
+        "approvedAt": {
+          ".validate": "auth.token.email === 'codingky@gmail.com'"
+        },
+        "rejectedAt": {
+          ".validate": "auth.token.email === 'codingky@gmail.com'"
+        }
+      }
+    },
     "rooms": {
       ".read": "auth != null",
       ".write": "auth != null",
