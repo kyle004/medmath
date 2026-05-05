@@ -8110,6 +8110,9 @@ function App() {
 
   // Check admin status from Firebase /admins node
   const [isAdmin, setIsAdmin] = useState(false);
+  // Super admin — only this email can see/access the Admin Panel
+  const SUPER_ADMIN_EMAIL = 'codingky@gmail.com';
+  const isSuperAdmin = authUser && authUser.email === SUPER_ADMIN_EMAIL;
   useEffect(() => {
     if (!firebaseReady || !firebaseDb || !authUser) { setIsAdmin(false); return; }
     const adminRef = firebaseDb.ref('admins/' + authUser.uid);
@@ -8226,7 +8229,7 @@ function App() {
       case 'formulas': return React.createElement(FormulaCreator, {progress, setProgress});
       case 'leaderboard': return React.createElement(Leaderboard, {authUser});
       case 'settings': return React.createElement(SettingsPage, {progress, setProgress, onSignOut: handleSignOut, authUser, isAdmin});
-      case 'admin': return isAdmin ? React.createElement(AdminPanel, {onlineUsers, sendMessage, myId}) : React.createElement(HomeScreen, {onNav: setPage, progress});
+      case 'admin': return isSuperAdmin ? React.createElement(AdminPanel, {onlineUsers, sendMessage, myId}) : React.createElement(HomeScreen, {onNav: setPage, progress});
       default: return React.createElement(HomeScreen, {onNav: setPage, progress});
     }
   };
@@ -8329,8 +8332,8 @@ function App() {
             show('rooms') && sidebarItem('rooms', '\uD83D\uDC65', 'Study Rooms')
           ].filter(Boolean);
           if (socialItems.length) { items.push(React.createElement('div', {className:'sidebar-section', key:'s-social'}, 'Social')); items.push(...socialItems); }
-          // Admin section \u2014 always visible for admins
-          if (isAdmin) {
+          // Admin section \u2014 only visible to super admin (codingky@gmail.com)
+          if (isSuperAdmin) {
             items.push(React.createElement('div', {className:'sidebar-section', key:'s-admin'}, 'Admin'));
             items.push(sidebarItem('admin', '\uD83D\uDD12', 'Admin Panel'));
           }
