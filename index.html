@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MedMaster</title>
-<meta name="app-version" content="15">
+<meta name="app-version" content="16">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <!-- Firebase SDK -->
@@ -1080,7 +1080,7 @@ const QUESTIONS = [
   },
   // ===== LAB DAY TEST QUESTIONS =====
   {
-    id:'lab-1', category:'IV/Infusion', difficulty:'Hard', exam:true,
+    id:'lab-1', category:'IV/Infusion', difficulty:'Hard', exam:true, adminOnly:true,
     text:'The order is 0.9% NS 1,000 mL IV over 8 hours, then 125 mL/h for 4 hours, then 50 mL/h for 12 hours. The drop factor is 15 gtt/mL. What is the flow rate of the initial bolus gtt/min?',
     type:'free',
     correct:'31',
@@ -1098,7 +1098,7 @@ const QUESTIONS = [
     formula:'drip-rate'
   },
   {
-    id:'lab-2', category:'IV/Infusion', difficulty:'Hard', exam:true,
+    id:'lab-2', category:'IV/Infusion', difficulty:'Hard', exam:true, adminOnly:true,
     text:'The patient will receive 1 L 0.9% Sodium Chloride over 15 minutes. Then Normal Saline 150 mL/h for 6 hours, then 75 mL/h for 4 hours. What is the total volume of IV fluids this patient will receive in the next 12 hours?',
     type:'free',
     correct:'2200',
@@ -1117,7 +1117,7 @@ const QUESTIONS = [
     formula:'iv-ml-hr'
   },
   {
-    id:'lab-3', category:'Pediatric', difficulty:'Hard', exam:true,
+    id:'lab-3', category:'Pediatric', difficulty:'Hard', exam:true, adminOnly:true,
     text:'The order is for Cefazolin 300 mg IV for a child weighing 22 lb. The safe dose range is 25–100 mg/kg/day divided every 8 hours. Is this dose safe? (Show calculation of safe range.)',
     type:'free',
     correct:'safe',
@@ -1139,7 +1139,7 @@ const QUESTIONS = [
     formula:'safe-dose-range'
   },
   {
-    id:'lab-4', category:'Conversions', difficulty:'Easy', exam:true,
+    id:'lab-4', category:'Conversions', difficulty:'Easy', exam:true, adminOnly:true,
     text:'Give Levothyroxine 0.075 mg PO daily. The pharmacy provides Levothyroxine 50 mcg tablets. How many tablets are required per dose?',
     type:'free',
     correct:'1.5',
@@ -1156,7 +1156,7 @@ const QUESTIONS = [
     formula:'desired-over-have'
   },
   {
-    id:'lab-5', category:'Critical Care', difficulty:'Hard', exam:true,
+    id:'lab-5', category:'Critical Care', difficulty:'Hard', exam:true, adminOnly:true,
     text:'A patient weighs 92 kg and is prescribed dopamine at 8 mcg/kg/min. The medication is available in 400 mg in 250 mL D5W. What is the medication concentration in mcg/mL and calculate the infusion rate.',
     type:'free',
     correct:'27.6',
@@ -1172,6 +1172,436 @@ const QUESTIONS = [
       {label:'Dose per minute', hint:'8 × 92', answer:'736', unit:'mcg/min'},
       {label:'Convert to mcg/hr', hint:'736 × 60', answer:'44160', unit:'mcg/hr'},
       {label:'Calculate mL/hr', hint:'44160 ÷ 1600', answer:'27.6', unit:'mL/hr'}
+    ],
+    formula:'mcg-kg-min'
+  },
+  // === LAB DAY SIMILAR PRACTICE QUESTIONS ===
+  // --- IV Drip Rate (similar to lab-1) ---
+  {
+    id:'labsim-1a', category:'IV/Infusion', difficulty:'Hard', examSimilar:true,
+    text:'The order is 0.45% NS 750 mL IV over 6 hours, then 100 mL/h for 3 hours. The drop factor is 20 gtt/mL. What is the flow rate of the initial infusion in gtt/min?',
+    type:'free', correct:'42', unit:'gtt/min',
+    keyInfo:['750 mL over 6 hours','20 gtt/mL','initial infusion only'],
+    traps:['The 100 mL/h is a subsequent order — ignore it','Focus on the first phase only'],
+    keyPhrases:['750 mL','over 6 hours','20 gtt/mL','initial infusion'],
+    trapPhrases:['then 100 mL/h for 3 hours','0.45% NS'],
+    convertPhrases:['6 hours'],
+    steps:[
+      {label:'Convert hours to minutes', hint:'6 × 60', answer:'360', unit:'min'},
+      {label:'Apply gtt/min formula', hint:'(750 × 20) ÷ 360', answer:'41.7', unit:'gtt/min'},
+      {label:'Round to whole drops', hint:'Round 41.7', answer:'42', unit:'gtt/min'}
+    ],
+    formula:'drip-rate'
+  },
+  {
+    id:'labsim-1b', category:'IV/Infusion', difficulty:'Hard', examSimilar:true,
+    text:'Administer D5W 500 mL IV over 4 hours, then 200 mL/h for 2 hours, then KVO at 25 mL/h. The tubing drop factor is 10 gtt/mL. Calculate the gtt/min for the initial D5W infusion.',
+    type:'free', correct:'21', unit:'gtt/min',
+    keyInfo:['500 mL over 4 hours','10 gtt/mL','initial D5W infusion only'],
+    traps:['Ignore the 200 mL/h and KVO phases','Three phases but only asking for the first'],
+    keyPhrases:['500 mL','over 4 hours','10 gtt/mL','initial'],
+    trapPhrases:['then 200 mL/h for 2 hours','then KVO at 25 mL/h','D5W'],
+    convertPhrases:['4 hours'],
+    steps:[
+      {label:'Convert hours to minutes', hint:'4 × 60', answer:'240', unit:'min'},
+      {label:'Apply gtt/min formula', hint:'(500 × 10) ÷ 240', answer:'20.8', unit:'gtt/min'},
+      {label:'Round to whole drops', hint:'Round 20.8', answer:'21', unit:'gtt/min'}
+    ],
+    formula:'drip-rate'
+  },
+  {
+    id:'labsim-1c', category:'IV/Infusion', difficulty:'Hard', examSimilar:true,
+    text:'The order reads: 0.9% NS 1,200 mL IV over 10 hours, then switch to D5 0.45% NS at 80 mL/h. The drop factor is 15 gtt/mL. What is the flow rate for the initial bolus in gtt/min?',
+    type:'free', correct:'30', unit:'gtt/min',
+    keyInfo:['1,200 mL over 10 hours','15 gtt/mL','asking for initial bolus only'],
+    traps:['The 80 mL/h phase is a subsequent order','Focus only on the 1,200 mL phase'],
+    keyPhrases:['1,200 mL','over 10 hours','15 gtt/mL','initial bolus'],
+    trapPhrases:['then switch to','D5 0.45% NS at 80 mL/h','0.9% NS'],
+    convertPhrases:['10 hours'],
+    steps:[
+      {label:'Convert hours to minutes', hint:'10 × 60', answer:'600', unit:'min'},
+      {label:'Apply gtt/min formula', hint:'(1200 × 15) ÷ 600', answer:'30', unit:'gtt/min'}
+    ],
+    formula:'drip-rate'
+  },
+  {
+    id:'labsim-1d', category:'IV/Infusion', difficulty:'Hard', examSimilar:true,
+    text:'The provider orders Lactated Ringer\'s 250 mL IV over 2 hours as a bolus, followed by 0.9% NS at 125 mL/h. The tubing drop factor is 60 gtt/mL (microdrip). Calculate the flow rate in gtt/min for the bolus.',
+    type:'free', correct:'125', unit:'gtt/min',
+    keyInfo:['250 mL over 2 hours','60 gtt/mL microdrip','bolus phase only'],
+    traps:['Microdrip (60 gtt/mL) — gtt/min equals mL/hr','Ignore the 125 mL/h maintenance phase'],
+    keyPhrases:['250 mL','over 2 hours','60 gtt/mL','bolus'],
+    trapPhrases:['followed by','0.9% NS at 125 mL/h','Lactated Ringer\'s'],
+    convertPhrases:['2 hours'],
+    steps:[
+      {label:'Convert hours to minutes', hint:'2 × 60', answer:'120', unit:'min'},
+      {label:'Apply gtt/min formula', hint:'(250 × 60) ÷ 120', answer:'125', unit:'gtt/min'}
+    ],
+    formula:'drip-rate'
+  },
+  {
+    id:'labsim-1e', category:'IV/Infusion', difficulty:'Hard', examSimilar:true,
+    text:'Administer 0.9% NS 800 mL IV over 5 hours, then decrease to 60 mL/h for 8 hours, then discontinue. The drop factor is 15 gtt/mL. What is the initial flow rate in gtt/min?',
+    type:'free', correct:'40', unit:'gtt/min',
+    keyInfo:['800 mL over 5 hours','15 gtt/mL','asking for initial rate'],
+    traps:['Multiple phases — only need the first','60 mL/h is a distractor'],
+    keyPhrases:['800 mL','over 5 hours','15 gtt/mL','initial flow rate'],
+    trapPhrases:['then decrease to 60 mL/h','for 8 hours','then discontinue'],
+    convertPhrases:['5 hours'],
+    steps:[
+      {label:'Convert hours to minutes', hint:'5 × 60', answer:'300', unit:'min'},
+      {label:'Apply gtt/min formula', hint:'(800 × 15) ÷ 300', answer:'40', unit:'gtt/min'}
+    ],
+    formula:'drip-rate'
+  },
+  // --- Total IV Volume (similar to lab-2) ---
+  {
+    id:'labsim-2a', category:'IV/Infusion', difficulty:'Hard', examSimilar:true,
+    text:'A patient receives 500 mL 0.9% NS IV over 30 minutes, then Normal Saline at 125 mL/h for 8 hours, then 75 mL/h for 2 hours. What is the total volume of IV fluids this patient will receive?',
+    type:'free', correct:'1650', unit:'mL',
+    keyInfo:['500 mL first phase','125 mL/h × 8 hours','75 mL/h × 2 hours'],
+    traps:['Each phase must be calculated separately','Don\'t forget the initial 500 mL bolus'],
+    keyPhrases:['500 mL','125 mL/h for 8 hours','75 mL/h for 2 hours','total volume'],
+    trapPhrases:['over 30 minutes','0.9% NS','Normal Saline'],
+    convertPhrases:[],
+    steps:[
+      {label:'Phase 1: Initial bolus', hint:'500 mL given', answer:'500', unit:'mL'},
+      {label:'Phase 2: Calculate volume', hint:'125 mL/h × 8 h', answer:'1000', unit:'mL'},
+      {label:'Phase 3: Calculate volume', hint:'75 mL/h × 2 h', answer:'150', unit:'mL'},
+      {label:'Add all phases', hint:'500 + 1000 + 150', answer:'1650', unit:'mL'}
+    ],
+    formula:'iv-ml-hr'
+  },
+  {
+    id:'labsim-2b', category:'IV/Infusion', difficulty:'Hard', examSimilar:true,
+    text:'The patient will receive 1.5 L D5W over 20 minutes as a rapid infusion. Then D5 0.45% NS at 100 mL/h for 6 hours, then 50 mL/h for 4 hours. What is the total volume of IV fluids?',
+    type:'free', correct:'2300', unit:'mL',
+    keyInfo:['1.5 L = 1500 mL','100 mL/h × 6 hours','50 mL/h × 4 hours'],
+    traps:['1.5 L must be converted to 1500 mL','Calculate each phase separately'],
+    keyPhrases:['1.5 L','100 mL/h for 6 hours','50 mL/h for 4 hours','total volume'],
+    trapPhrases:['over 20 minutes','D5W','D5 0.45% NS','rapid infusion'],
+    convertPhrases:['1.5 L'],
+    steps:[
+      {label:'Phase 1: Convert L to mL', hint:'1.5 L = 1500 mL', answer:'1500', unit:'mL'},
+      {label:'Phase 2: Calculate volume', hint:'100 mL/h × 6 h', answer:'600', unit:'mL'},
+      {label:'Phase 3: Calculate volume', hint:'50 mL/h × 4 h', answer:'200', unit:'mL'},
+      {label:'Add all phases', hint:'1500 + 600 + 200', answer:'2300', unit:'mL'}
+    ],
+    formula:'iv-ml-hr'
+  },
+  {
+    id:'labsim-2c', category:'IV/Infusion', difficulty:'Hard', examSimilar:true,
+    text:'A patient is ordered 250 mL 0.9% NS IV bolus over 15 minutes, then Lactated Ringer\'s at 200 mL/h for 3 hours, then decrease to 100 mL/h for 6 hours. Calculate the total IV fluid volume the patient receives.',
+    type:'free', correct:'1450', unit:'mL',
+    keyInfo:['250 mL bolus','200 mL/h × 3 hours','100 mL/h × 6 hours'],
+    traps:['Three distinct phases — calculate each separately','Bolus is already in mL'],
+    keyPhrases:['250 mL','200 mL/h for 3 hours','100 mL/h for 6 hours','total'],
+    trapPhrases:['over 15 minutes','0.9% NS','Lactated Ringer\'s','decrease to'],
+    convertPhrases:[],
+    steps:[
+      {label:'Phase 1: Bolus volume', hint:'250 mL', answer:'250', unit:'mL'},
+      {label:'Phase 2: Calculate volume', hint:'200 mL/h × 3 h', answer:'600', unit:'mL'},
+      {label:'Phase 3: Calculate volume', hint:'100 mL/h × 6 h', answer:'600', unit:'mL'},
+      {label:'Add all phases', hint:'250 + 600 + 600', answer:'1450', unit:'mL'}
+    ],
+    formula:'iv-ml-hr'
+  },
+  {
+    id:'labsim-2d', category:'IV/Infusion', difficulty:'Hard', examSimilar:true,
+    text:'The order reads: 0.9% NS 2 L over 1 hour, then 0.45% NS at 175 mL/h for 4 hours, then KVO at 25 mL/h for 8 hours. What is the total volume the patient receives over the next 13 hours?',
+    type:'free', correct:'2900', unit:'mL',
+    keyInfo:['2 L = 2000 mL','175 mL/h × 4 hours','25 mL/h × 8 hours','total over 13 hours'],
+    traps:['2 L must be converted to mL','KVO is still a volume that counts','Three phases add to 1 + 4 + 8 = 13 hours'],
+    keyPhrases:['2 L','175 mL/h for 4 hours','25 mL/h for 8 hours','total volume','13 hours'],
+    trapPhrases:['over 1 hour','0.9% NS','0.45% NS','KVO'],
+    convertPhrases:['2 L'],
+    steps:[
+      {label:'Phase 1: Convert L to mL', hint:'2 L = 2000 mL', answer:'2000', unit:'mL'},
+      {label:'Phase 2: Calculate volume', hint:'175 mL/h × 4 h', answer:'700', unit:'mL'},
+      {label:'Phase 3: KVO volume', hint:'25 mL/h × 8 h', answer:'200', unit:'mL'},
+      {label:'Add all phases', hint:'2000 + 700 + 200', answer:'2900', unit:'mL'}
+    ],
+    formula:'iv-ml-hr'
+  },
+  {
+    id:'labsim-2e', category:'IV/Infusion', difficulty:'Hard', examSimilar:true,
+    text:'The patient receives 0.5 L 0.9% NS IV over 45 minutes, then 80 mL/h for 10 hours, then 40 mL/h for 6 hours. What is the total volume of IV fluids this patient will receive?',
+    type:'free', correct:'1540', unit:'mL',
+    keyInfo:['0.5 L = 500 mL','80 mL/h × 10 hours','40 mL/h × 6 hours'],
+    traps:['0.5 L must be converted to 500 mL','Three phases to sum'],
+    keyPhrases:['0.5 L','80 mL/h for 10 hours','40 mL/h for 6 hours','total volume'],
+    trapPhrases:['over 45 minutes','0.9% NS'],
+    convertPhrases:['0.5 L'],
+    steps:[
+      {label:'Phase 1: Convert L to mL', hint:'0.5 L = 500 mL', answer:'500', unit:'mL'},
+      {label:'Phase 2: Calculate volume', hint:'80 mL/h × 10 h', answer:'800', unit:'mL'},
+      {label:'Phase 3: Calculate volume', hint:'40 mL/h × 6 h', answer:'240', unit:'mL'},
+      {label:'Add all phases', hint:'500 + 800 + 240', answer:'1540', unit:'mL'}
+    ],
+    formula:'iv-ml-hr'
+  },
+  // --- Pediatric Safe Dose Range (similar to lab-3) ---
+  {
+    id:'labsim-3a', category:'Pediatric', difficulty:'Hard', examSimilar:true,
+    text:'The order is for Amoxicillin 200 mg PO for a child weighing 33 lb. The safe dose range is 20–40 mg/kg/day divided every 8 hours. Is this dose safe?',
+    type:'free', correct:'safe', unit:'',
+    keyInfo:['200 mg per dose','33 lb','20–40 mg/kg/day','divided every 8 hours (3 doses/day)'],
+    traps:['Weight in lbs — must convert to kg','q8h = 3 doses/day','Compare single dose to per-dose range'],
+    keyPhrases:['200 mg','33 lb','20–40 mg/kg/day','every 8 hours'],
+    trapPhrases:['Amoxicillin','PO','for a child'],
+    convertPhrases:['33 lb'],
+    steps:[
+      {label:'Convert weight to kg', hint:'33 ÷ 2.2', answer:'15', unit:'kg'},
+      {label:'Low daily dose', hint:'20 mg/kg/day × 15 kg', answer:'300', unit:'mg/day'},
+      {label:'High daily dose', hint:'40 mg/kg/day × 15 kg', answer:'600', unit:'mg/day'},
+      {label:'Doses per day (q8h)', hint:'24 ÷ 8', answer:'3', unit:'doses'},
+      {label:'Low per-dose', hint:'300 ÷ 3', answer:'100', unit:'mg/dose'},
+      {label:'High per-dose', hint:'600 ÷ 3', answer:'200', unit:'mg/dose'},
+      {label:'Is 200 mg within 100–200 mg?', hint:'100 ≤ 200 ≤ 200 → Yes', answer:'safe', unit:'(within range)'}
+    ],
+    formula:'safe-dose-range'
+  },
+  {
+    id:'labsim-3b', category:'Pediatric', difficulty:'Hard', examSimilar:true,
+    text:'A child weighing 44 lb is prescribed Vancomycin 250 mg IV. The safe dose range is 40–60 mg/kg/day divided every 6 hours. Is this dose safe?',
+    type:'free', correct:'safe', unit:'',
+    keyInfo:['250 mg per dose','44 lb','40–60 mg/kg/day','divided every 6 hours (4 doses/day)'],
+    traps:['Weight in lbs — must convert to kg','q6h = 4 doses/day, not 6','Compare single dose to per-dose range'],
+    keyPhrases:['250 mg','44 lb','40–60 mg/kg/day','every 6 hours'],
+    trapPhrases:['Vancomycin','IV','A child weighing'],
+    convertPhrases:['44 lb'],
+    steps:[
+      {label:'Convert weight to kg', hint:'44 ÷ 2.2', answer:'20', unit:'kg'},
+      {label:'Low daily dose', hint:'40 mg/kg/day × 20 kg', answer:'800', unit:'mg/day'},
+      {label:'High daily dose', hint:'60 mg/kg/day × 20 kg', answer:'1200', unit:'mg/day'},
+      {label:'Doses per day (q6h)', hint:'24 ÷ 6', answer:'4', unit:'doses'},
+      {label:'Low per-dose', hint:'800 ÷ 4', answer:'200', unit:'mg/dose'},
+      {label:'High per-dose', hint:'1200 ÷ 4', answer:'300', unit:'mg/dose'},
+      {label:'Is 250 mg within 200–300 mg?', hint:'200 ≤ 250 ≤ 300 → Yes', answer:'safe', unit:'(within range)'}
+    ],
+    formula:'safe-dose-range'
+  },
+  {
+    id:'labsim-3c', category:'Pediatric', difficulty:'Hard', examSimilar:true,
+    text:'The provider orders Clindamycin 175 mg IV for a child weighing 55 lb. The safe dose range is 15–40 mg/kg/day divided every 8 hours. Is this dose safe?',
+    type:'free', correct:'safe', unit:'',
+    keyInfo:['175 mg per dose','55 lb','15–40 mg/kg/day','divided every 8 hours (3 doses/day)'],
+    traps:['Weight in lbs — must convert to kg','q8h = 3 doses/day','This dose may exceed the safe range'],
+    keyPhrases:['175 mg','55 lb','15–40 mg/kg/day','every 8 hours'],
+    trapPhrases:['Clindamycin','IV','The provider orders'],
+    convertPhrases:['55 lb'],
+    steps:[
+      {label:'Convert weight to kg', hint:'55 ÷ 2.2', answer:'25', unit:'kg'},
+      {label:'Low daily dose', hint:'15 mg/kg/day × 25 kg', answer:'375', unit:'mg/day'},
+      {label:'High daily dose', hint:'40 mg/kg/day × 25 kg', answer:'1000', unit:'mg/day'},
+      {label:'Doses per day (q8h)', hint:'24 ÷ 8', answer:'3', unit:'doses'},
+      {label:'Low per-dose', hint:'375 ÷ 3', answer:'125', unit:'mg/dose'},
+      {label:'High per-dose', hint:'1000 ÷ 3', answer:'333', unit:'mg/dose'},
+      {label:'Is 175 mg within 125–333 mg?', hint:'125 ≤ 175 ≤ 333 → Yes', answer:'safe', unit:'(within range)'}
+    ],
+    formula:'safe-dose-range'
+  },
+  {
+    id:'labsim-3d', category:'Pediatric', difficulty:'Hard', examSimilar:true,
+    text:'A 28 lb infant is ordered Gentamicin 30 mg IV. The safe dose range is 6–7.5 mg/kg/day divided every 8 hours. Is this dose safe?',
+    type:'free', correct:'safe', unit:'',
+    keyInfo:['30 mg per dose','28 lb','6–7.5 mg/kg/day','divided every 8 hours (3 doses/day)'],
+    traps:['Weight in lbs — must convert to kg','q8h = 3 doses/day','Narrow therapeutic range — must be precise'],
+    keyPhrases:['30 mg','28 lb','6–7.5 mg/kg/day','every 8 hours'],
+    trapPhrases:['Gentamicin','IV','infant'],
+    convertPhrases:['28 lb'],
+    steps:[
+      {label:'Convert weight to kg', hint:'28 ÷ 2.2 ≈ 12.7', answer:'12.7', unit:'kg'},
+      {label:'Low daily dose', hint:'6 mg/kg/day × 12.7 kg', answer:'76.2', unit:'mg/day'},
+      {label:'High daily dose', hint:'7.5 mg/kg/day × 12.7 kg', answer:'95.3', unit:'mg/day'},
+      {label:'Doses per day (q8h)', hint:'24 ÷ 8', answer:'3', unit:'doses'},
+      {label:'Low per-dose', hint:'76.2 ÷ 3', answer:'25.4', unit:'mg/dose'},
+      {label:'High per-dose', hint:'95.3 ÷ 3', answer:'31.8', unit:'mg/dose'},
+      {label:'Is 30 mg within 25.4–31.8 mg?', hint:'25.4 ≤ 30 ≤ 31.8 → Yes', answer:'safe', unit:'(within range)'}
+    ],
+    formula:'safe-dose-range'
+  },
+  {
+    id:'labsim-3e', category:'Pediatric', difficulty:'Hard', examSimilar:true,
+    text:'The order is for Cephalexin 400 mg PO for a child weighing 66 lb. The safe dose range is 25–50 mg/kg/day divided every 6 hours. Is this dose safe?',
+    type:'free', correct:'unsafe', unit:'',
+    keyInfo:['400 mg per dose','66 lb','25–50 mg/kg/day','divided every 6 hours (4 doses/day)'],
+    traps:['Weight in lbs — must convert to kg','q6h = 4 doses/day','Compare to per-dose max, not daily max'],
+    keyPhrases:['400 mg','66 lb','25–50 mg/kg/day','every 6 hours'],
+    trapPhrases:['Cephalexin','PO','for a child'],
+    convertPhrases:['66 lb'],
+    steps:[
+      {label:'Convert weight to kg', hint:'66 ÷ 2.2', answer:'30', unit:'kg'},
+      {label:'Low daily dose', hint:'25 mg/kg/day × 30 kg', answer:'750', unit:'mg/day'},
+      {label:'High daily dose', hint:'50 mg/kg/day × 30 kg', answer:'1500', unit:'mg/day'},
+      {label:'Doses per day (q6h)', hint:'24 ÷ 6', answer:'4', unit:'doses'},
+      {label:'Low per-dose', hint:'750 ÷ 4', answer:'187.5', unit:'mg/dose'},
+      {label:'High per-dose', hint:'1500 ÷ 4', answer:'375', unit:'mg/dose'},
+      {label:'Is 400 mg within 187.5–375 mg?', hint:'400 > 375 → No, exceeds max', answer:'unsafe', unit:'(above range)'}
+    ],
+    formula:'safe-dose-range'
+  },
+  // --- Unit Conversion + D/H (similar to lab-4) ---
+  {
+    id:'labsim-4a', category:'Conversions', difficulty:'Easy', examSimilar:true,
+    text:'The order is for Digoxin 0.125 mg PO daily. The pharmacy provides Digoxin 250 mcg tablets. How many tablets should the patient receive?',
+    type:'free', correct:'0.5', unit:'tabs',
+    keyInfo:['0.125 mg ordered','250 mcg available','mg to mcg conversion'],
+    traps:['Units don\'t match — must convert mg to mcg first','Result is half a tablet'],
+    keyPhrases:['0.125 mg','250 mcg tablets'],
+    trapPhrases:['Digoxin','PO daily','The pharmacy provides'],
+    convertPhrases:['0.125 mg','250 mcg'],
+    steps:[
+      {label:'Convert mg to mcg', hint:'0.125 × 1000', answer:'125', unit:'mcg'},
+      {label:'D/H × Q', hint:'125 ÷ 250 × 1', answer:'0.5', unit:'tabs'}
+    ],
+    formula:'desired-over-have'
+  },
+  {
+    id:'labsim-4b', category:'Conversions', difficulty:'Easy', examSimilar:true,
+    text:'Give Synthroid 0.05 mg PO daily. Available: Synthroid 25 mcg tablets. How many tablets will you administer?',
+    type:'free', correct:'2', unit:'tabs',
+    keyInfo:['0.05 mg ordered','25 mcg available','mg to mcg conversion'],
+    traps:['Units don\'t match — mg to mcg','0.05 mg = 50 mcg, not 5'],
+    keyPhrases:['0.05 mg','25 mcg tablets'],
+    trapPhrases:['Synthroid','PO daily','Available'],
+    convertPhrases:['0.05 mg','25 mcg'],
+    steps:[
+      {label:'Convert mg to mcg', hint:'0.05 × 1000', answer:'50', unit:'mcg'},
+      {label:'D/H × Q', hint:'50 ÷ 25 × 1', answer:'2', unit:'tabs'}
+    ],
+    formula:'desired-over-have'
+  },
+  {
+    id:'labsim-4c', category:'Conversions', difficulty:'Easy', examSimilar:true,
+    text:'The order is Lisinopril 0.02 g PO daily. The pharmacy sends Lisinopril 10 mg tablets. How many tablets do you give?',
+    type:'free', correct:'2', unit:'tabs',
+    keyInfo:['0.02 g ordered','10 mg available','g to mg conversion'],
+    traps:['Units don\'t match — must convert g to mg first','0.02 g = 20 mg'],
+    keyPhrases:['0.02 g','10 mg tablets'],
+    trapPhrases:['Lisinopril','PO daily','The pharmacy sends'],
+    convertPhrases:['0.02 g','10 mg'],
+    steps:[
+      {label:'Convert g to mg', hint:'0.02 × 1000', answer:'20', unit:'mg'},
+      {label:'D/H × Q', hint:'20 ÷ 10 × 1', answer:'2', unit:'tabs'}
+    ],
+    formula:'desired-over-have'
+  },
+  {
+    id:'labsim-4d', category:'Conversions', difficulty:'Easy', examSimilar:true,
+    text:'Administer Carvedilol 0.0125 g PO BID. Available: Carvedilol 6.25 mg tablets. How many tablets per dose?',
+    type:'free', correct:'2', unit:'tabs',
+    keyInfo:['0.0125 g per dose','6.25 mg available','g to mg conversion'],
+    traps:['Units don\'t match — g to mg','BID means twice daily but asking per dose'],
+    keyPhrases:['0.0125 g','6.25 mg tablets','per dose'],
+    trapPhrases:['Carvedilol','PO BID','Available'],
+    convertPhrases:['0.0125 g','6.25 mg'],
+    steps:[
+      {label:'Convert g to mg', hint:'0.0125 × 1000', answer:'12.5', unit:'mg'},
+      {label:'D/H × Q', hint:'12.5 ÷ 6.25 × 1', answer:'2', unit:'tabs'}
+    ],
+    formula:'desired-over-have'
+  },
+  {
+    id:'labsim-4e', category:'Conversions', difficulty:'Easy', examSimilar:true,
+    text:'The order is for Cyanocobalamin 0.5 mg IM monthly. Available: Cyanocobalamin 1000 mcg/mL vial. How many mL will you administer?',
+    type:'free', correct:'0.5', unit:'mL',
+    keyInfo:['0.5 mg ordered','1000 mcg/mL available','mg to mcg conversion'],
+    traps:['Units don\'t match — mg to mcg','0.5 mg = 500 mcg'],
+    keyPhrases:['0.5 mg','1000 mcg/mL'],
+    trapPhrases:['Cyanocobalamin','IM monthly','vial'],
+    convertPhrases:['0.5 mg','1000 mcg'],
+    steps:[
+      {label:'Convert mg to mcg', hint:'0.5 × 1000', answer:'500', unit:'mcg'},
+      {label:'D/H × Q', hint:'500 ÷ 1000 × 1', answer:'0.5', unit:'mL'}
+    ],
+    formula:'desired-over-have'
+  },
+  // --- Critical Care Drip (similar to lab-5) ---
+  {
+    id:'labsim-5a', category:'Critical Care', difficulty:'Hard', examSimilar:true,
+    text:'A patient weighs 78 kg and is prescribed dobutamine at 5 mcg/kg/min. The medication is available as 500 mg in 250 mL D5W. What is the concentration in mcg/mL and the infusion rate in mL/hr?',
+    type:'free', correct:'11.7', unit:'mL/hr',
+    keyInfo:['78 kg','5 mcg/kg/min','500 mg in 250 mL','need concentration AND rate'],
+    traps:['mg to mcg conversion for concentration','mcg/min must convert to mL/hr','Two-part calculation'],
+    keyPhrases:['78 kg','5 mcg/kg/min','500 mg in 250 mL','concentration','infusion rate'],
+    trapPhrases:['dobutamine','D5W','A patient weighs'],
+    convertPhrases:['500 mg','mcg/mL'],
+    steps:[
+      {label:'Convert mg to mcg', hint:'500 × 1000', answer:'500000', unit:'mcg'},
+      {label:'Concentration', hint:'500,000 ÷ 250', answer:'2000', unit:'mcg/mL'},
+      {label:'Dose per minute', hint:'5 × 78', answer:'390', unit:'mcg/min'},
+      {label:'Convert to mcg/hr', hint:'390 × 60', answer:'23400', unit:'mcg/hr'},
+      {label:'Calculate mL/hr', hint:'23400 ÷ 2000', answer:'11.7', unit:'mL/hr'}
+    ],
+    formula:'mcg-kg-min'
+  },
+  {
+    id:'labsim-5b', category:'Critical Care', difficulty:'Hard', examSimilar:true,
+    text:'A 65 kg patient is ordered norepinephrine at 12 mcg/min (NOT weight-based). Available: 4 mg in 250 mL NS. What is the concentration in mcg/mL and the infusion rate in mL/hr?',
+    type:'free', correct:'45', unit:'mL/hr',
+    keyInfo:['12 mcg/min (flat dose)','4 mg in 250 mL','concentration then rate'],
+    traps:['This is NOT weight-based — the 65 kg is a distractor','mg to mcg for concentration','mcg/min to mL/hr'],
+    keyPhrases:['12 mcg/min','4 mg in 250 mL','concentration','infusion rate'],
+    trapPhrases:['65 kg','norepinephrine','NOT weight-based','NS'],
+    convertPhrases:['4 mg','mcg/mL'],
+    steps:[
+      {label:'Convert mg to mcg', hint:'4 × 1000', answer:'4000', unit:'mcg'},
+      {label:'Concentration', hint:'4000 ÷ 250', answer:'16', unit:'mcg/mL'},
+      {label:'Dose per hour', hint:'12 mcg/min × 60', answer:'720', unit:'mcg/hr'},
+      {label:'Calculate mL/hr', hint:'720 ÷ 16', answer:'45', unit:'mL/hr'}
+    ],
+    formula:'mcg-kg-min'
+  },
+  {
+    id:'labsim-5c', category:'Critical Care', difficulty:'Hard', examSimilar:true,
+    text:'A patient weighs 85 kg and is prescribed dopamine at 10 mcg/kg/min. The medication is available as 800 mg in 500 mL D5W. Calculate the concentration in mcg/mL and the infusion rate in mL/hr.',
+    type:'free', correct:'31.9', unit:'mL/hr',
+    keyInfo:['85 kg','10 mcg/kg/min','800 mg in 500 mL','concentration AND rate'],
+    traps:['mg to mcg conversion','Two-step: concentration first, then rate','mcg/min → mL/hr'],
+    keyPhrases:['85 kg','10 mcg/kg/min','800 mg in 500 mL','concentration','infusion rate'],
+    trapPhrases:['dopamine','D5W','A patient weighs'],
+    convertPhrases:['800 mg','mcg/mL'],
+    steps:[
+      {label:'Convert mg to mcg', hint:'800 × 1000', answer:'800000', unit:'mcg'},
+      {label:'Concentration', hint:'800,000 ÷ 500', answer:'1600', unit:'mcg/mL'},
+      {label:'Dose per minute', hint:'10 × 85', answer:'850', unit:'mcg/min'},
+      {label:'Convert to mcg/hr', hint:'850 × 60', answer:'51000', unit:'mcg/hr'},
+      {label:'Calculate mL/hr', hint:'51000 ÷ 1600', answer:'31.9', unit:'mL/hr'}
+    ],
+    formula:'mcg-kg-min'
+  },
+  {
+    id:'labsim-5d', category:'Critical Care', difficulty:'Hard', examSimilar:true,
+    text:'A 70 kg patient is ordered milrinone at 0.5 mcg/kg/min. Available: 20 mg in 100 mL D5W. What is the concentration in mcg/mL and the infusion rate in mL/hr?',
+    type:'free', correct:'10.5', unit:'mL/hr',
+    keyInfo:['70 kg','0.5 mcg/kg/min','20 mg in 100 mL','concentration AND rate'],
+    traps:['Very small dose rate (0.5 mcg/kg/min)','mg to mcg','mcg/min → mL/hr'],
+    keyPhrases:['70 kg','0.5 mcg/kg/min','20 mg in 100 mL','concentration','infusion rate'],
+    trapPhrases:['milrinone','D5W'],
+    convertPhrases:['20 mg','mcg/mL'],
+    steps:[
+      {label:'Convert mg to mcg', hint:'20 × 1000', answer:'20000', unit:'mcg'},
+      {label:'Concentration', hint:'20,000 ÷ 100', answer:'200', unit:'mcg/mL'},
+      {label:'Dose per minute', hint:'0.5 × 70', answer:'35', unit:'mcg/min'},
+      {label:'Convert to mcg/hr', hint:'35 × 60', answer:'2100', unit:'mcg/hr'},
+      {label:'Calculate mL/hr', hint:'2100 ÷ 200', answer:'10.5', unit:'mL/hr'}
+    ],
+    formula:'mcg-kg-min'
+  },
+  {
+    id:'labsim-5e', category:'Critical Care', difficulty:'Hard', examSimilar:true,
+    text:'A patient weighs 110 kg and is ordered vasopressin at 0.04 units/min (NOT weight-based). Available: 20 units in 100 mL NS. What is the concentration in units/mL and the infusion rate in mL/hr?',
+    type:'free', correct:'12', unit:'mL/hr',
+    keyInfo:['0.04 units/min (flat dose)','20 units in 100 mL','concentration then rate'],
+    traps:['NOT weight-based — 110 kg is a distractor','Units (not mcg) — same math pattern','units/min to mL/hr'],
+    keyPhrases:['0.04 units/min','20 units in 100 mL','concentration','infusion rate'],
+    trapPhrases:['110 kg','vasopressin','NOT weight-based','NS'],
+    convertPhrases:[],
+    steps:[
+      {label:'Concentration', hint:'20 units ÷ 100 mL', answer:'0.2', unit:'units/mL'},
+      {label:'Dose per hour', hint:'0.04 units/min × 60', answer:'2.4', unit:'units/hr'},
+      {label:'Calculate mL/hr', hint:'2.4 ÷ 0.2', answer:'12', unit:'mL/hr'}
     ],
     formula:'mcg-kg-min'
   },
@@ -5462,8 +5892,10 @@ Remember: You're testing the student verbally, like a real clinical exam. Be con
 // ============================
 // LAB DAY TEST
 // ============================
-function LabDayTest({ progress, setProgress }) {
-  const labQs = QUESTIONS.filter(q => q.exam || q.examSimilar);
+function LabDayTest({ progress, setProgress, isSuperAdmin }) {
+  const allLabQs = QUESTIONS.filter(q => q.exam || q.examSimilar);
+  // Admin-only questions (actual exam) are hidden from students
+  const labQs = isSuperAdmin ? allLabQs : allLabQs.filter(q => !q.adminOnly);
   const examQs = labQs.filter(q => q.exam);
   const similarQs = labQs.filter(q => q.examSimilar);
   const savedLab = progress.labDayPosition || {mode:'menu', qIdx:0, filterType:'all'};
@@ -5613,9 +6045,9 @@ function LabDayTest({ progress, setProgress }) {
         React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>setMode('menu')}, '\u2190 Back')
       ),
       React.createElement('div', {style:{display:'flex', gap:6, marginBottom:14, flexWrap:'wrap'}},
-        ['all','exam','similar'].map(f =>
+        (examQs.length > 0 && similarQs.length > 0 ? ['all','exam','similar'] : ['all']).map(f =>
           React.createElement('button', {key:f, className:'filter-btn'+(filterType===f?' active':''), onClick:()=>{setFilterType(f); reset(0);}},
-            f === 'all' ? 'All (' + labQs.length + ')' : f === 'exam' ? '\uD83C\uDFAF On Test (' + examQs.length + ')' : '\u223C Similar (' + similarQs.length + ')'
+            f === 'all' ? 'All (' + labQs.length + ')' : f === 'exam' ? '\uD83C\uDFAF Exam (' + examQs.length + ')' : '\u223C Practice (' + similarQs.length + ')'
           )
         )
       ),
@@ -8222,7 +8654,7 @@ function App() {
       case 'dashboard': return React.createElement(Dashboard, {progress});
       case 'missed': return React.createElement(MissedBank, {progress, setProgress});
       case 'pharm': return React.createElement(PharmHub, {progress, setProgress});
-      case 'labday': return React.createElement(LabDayTest, {progress, setProgress});
+      case 'labday': return React.createElement(LabDayTest, {progress, setProgress, isSuperAdmin});
       case 'smart': return React.createElement(SmartStudy, {progress, setProgress});
       case 'rooms': return React.createElement(StudyRooms, {authUser, isAdmin});
       case 'flashcards': return React.createElement(FlashcardHub, {progress, setProgress});
