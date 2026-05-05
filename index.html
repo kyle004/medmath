@@ -139,7 +139,11 @@
   .calc-toggle:hover { transform:scale(1.08); box-shadow:0 6px 24px rgba(0,0,0,0.4); }
   .calc-toggle:active { transform:scale(0.95); }
   .calc-toggle svg { width:28px; height:28px; }
-  .calculator { position:fixed; bottom:90px; right:20px; width:320px; background:#1c1c1e; border-radius:20px; box-shadow:0 12px 48px rgba(0,0,0,0.6); z-index:100; overflow:hidden; border:1px solid rgba(255,255,255,0.08); display:flex; flex-direction:column; max-height:min(580px,calc(100vh - 120px)); }
+  .calculator { position:fixed; width:320px; min-width:260px; min-height:380px; background:#1c1c1e; border-radius:20px; box-shadow:0 12px 48px rgba(0,0,0,0.6); z-index:100; overflow:hidden; border:1px solid rgba(255,255,255,0.08); display:flex; flex-direction:column; resize:both; }
+  .calc-drag-handle { cursor:grab; padding:6px 14px 0; display:flex; justify-content:center; touch-action:none; }
+  .calc-drag-handle:active { cursor:grabbing; }
+  .calc-drag-bar { width:36px; height:4px; border-radius:2px; background:rgba(255,255,255,0.15); }
+  .calc-resize-hint { position:absolute; bottom:2px; right:6px; width:12px; height:12px; opacity:0.2; pointer-events:none; }
   .calc-header { display:flex; justify-content:space-between; align-items:center; padding:10px 14px 0; }
   .calc-header button { background:none; border:none; color:var(--text3); cursor:pointer; font-size:0.8rem; padding:4px 8px; border-radius:6px; }
   .calc-header button:hover { background:rgba(255,255,255,0.08); color:var(--text); }
@@ -165,7 +169,7 @@
   .calc-btn.fn { background:rgba(255,255,255,0.04); color:rgba(255,255,255,0.7); font-size:1rem; }
   .calc-btn.fn:hover { background:rgba(255,255,255,0.1); }
   .calc-btn.zero { border-radius:26px; grid-column:span 2; justify-content:flex-start; padding-left:22px; }
-  @media(max-width:600px) { .calculator { right:10px; left:10px; width:auto; bottom:80px; } }
+  @media(max-width:600px) { .calculator { width:auto; min-width:auto; resize:none; } }
 
   /* PROGRESS BAR */
   .progress-bar { height:6px; background:var(--surface2); border-radius:3px; overflow:hidden; margin-bottom:16px; }
@@ -1899,6 +1903,45 @@ function Calculator({ show, onToggle }) {
   const [lastOp, setLastOp] = useState(null);
   const [lastNum, setLastNum] = useState(null);
 
+  // Drag state
+  const [pos, setPos] = useState({x: null, y: null});
+  const dragRef = useRef(null);
+  const draggingRef = useRef(false);
+  const offsetRef = useRef({x:0, y:0});
+
+  const onDragStart = useCallback((e) => {
+    const evt = e.touches ? e.touches[0] : e;
+    const calcEl = dragRef.current;
+    if (!calcEl) return;
+    const rect = calcEl.getBoundingClientRect();
+    offsetRef.current = {x: evt.clientX - rect.left, y: evt.clientY - rect.top};
+    draggingRef.current = true;
+    e.preventDefault();
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!draggingRef.current) return;
+      const evt = e.touches ? e.touches[0] : e;
+      const x = evt.clientX - offsetRef.current.x;
+      const y = evt.clientY - offsetRef.current.y;
+      const maxX = window.innerWidth - 100;
+      const maxY = window.innerHeight - 60;
+      setPos({x: Math.max(0, Math.min(x, maxX)), y: Math.max(0, Math.min(y, maxY))});
+    };
+    const onUp = () => { draggingRef.current = false; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, {passive:false});
+    window.addEventListener('touchend', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+  }, []);
+
   const doMath = (a, op, b) => {
     const na = parseFloat(a); const nb = parseFloat(b);
     if (isNaN(na) || isNaN(nb)) return 'Error';
@@ -2018,7 +2061,6 @@ function Calculator({ show, onToggle }) {
 
   const displaySize = display.length > 12 ? '1.6rem' : display.length > 9 ? '2rem' : display.length > 7 ? '2.3rem' : '2.6rem';
 
-  // Calculator icon SVG
   const calcIcon = React.createElement('svg', {viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:1.5, strokeLinecap:'round', strokeLinejoin:'round'},
     React.createElement('rect', {x:4, y:2, width:16, height:20, rx:2}),
     React.createElement('rect', {x:7, y:5, width:10, height:4, rx:1, fill:'currentColor', stroke:'none', opacity:0.3}),
@@ -2046,12 +2088,28 @@ function Calculator({ show, onToggle }) {
     onClick: () => press(label), ...(extra || {})
   }, label);
 
+  const calcStyle = {};
+  if (pos.x !== null && pos.y !== null) {
+    calcStyle.left = pos.x + 'px';
+    calcStyle.top = pos.y + 'px';
+  } else {
+    calcStyle.bottom = '90px';
+    calcStyle.right = '20px';
+  }
+
   return ce(React.Fragment, null,
     ce('button', {className:'calc-toggle', onClick:onToggle, title:'Close calculator'}, closeIcon),
-    ce('div', {className:'calculator'},
+    ce('div', {className:'calculator', ref:dragRef, style:calcStyle},
+      // Drag handle
+      ce('div', {className:'calc-drag-handle', onMouseDown:onDragStart, onTouchStart:onDragStart},
+        ce('div', {className:'calc-drag-bar'})
+      ),
       ce('div', {className:'calc-header'},
         ce('button', {onClick:()=>setShowHistory(h=>!h)}, showHistory ? 'Hide History' : 'History (' + calcHistory.length + ')'),
-        ce('button', {onClick:()=>{setCalcHistory([]); setShowHistory(false);}}, 'Clear')
+        ce('div', {style:{display:'flex', gap:4}},
+          pos.x !== null && ce('button', {onClick:()=>setPos({x:null,y:null}), title:'Reset position'}, 'Reset'),
+          ce('button', {onClick:()=>{setCalcHistory([]); setShowHistory(false);}}, 'Clear')
+        )
       ),
       ce('div', {className:'calc-history' + (showHistory ? ' open' : '')},
         ce('div', {className:'calc-history-inner'},
@@ -2066,10 +2124,10 @@ function Calculator({ show, onToggle }) {
         )
       ),
       ce('div', {className:'calc-display'},
-        ce('div', {className:'calc-expr'}, expr || ' '),
+        ce('div', {className:'calc-expr'}, expr || ' '),
         ce('div', {className:'calc-value', style:{fontSize:displaySize}}, display)
       ),
-      ce('div', {className:'calc-grid'},
+      ce('div', {className:'calc-grid', style:{flex:1}},
         btn('AC', 'fn'), btn('±', 'fn'), btn('%', 'fn'), btn('÷', 'op'),
         btn('7'), btn('8'), btn('9'), btn('×', 'op'),
         btn('4'), btn('5'), btn('6'), btn('-', 'op'),
@@ -2087,6 +2145,10 @@ function Calculator({ show, onToggle }) {
           ),
           ' Delete'
         )
+      ),
+      // Resize grip indicator
+      ce('svg', {className:'calc-resize-hint', viewBox:'0 0 12 12'},
+        ce('path', {d:'M10 2L2 10M10 6L6 10M10 10L10 10', stroke:'rgba(255,255,255,0.4)', strokeWidth:1.5, strokeLinecap:'round'})
       )
     )
   );
