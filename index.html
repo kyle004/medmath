@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MedMaster</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233b82f6'/%3E%3Cstop offset='1' stop-color='%236366f1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Cpath d='M32 12c-2.5 0-4.5 1-4.5 3v9h-7c-2 0-3 2-3 4.5s1 4.5 3 4.5h7v9h-7c-2 0-3 2-3 4.5s1 4.5 3 4.5h7v1c0 2 2 3.5 4.5 3.5s4.5-1.5 4.5-3.5v-1h7c2 0 3-2 3-4.5s-1-4.5-3-4.5h-7v-9h7c2 0 3-2 3-4.5s-1-4.5-3-4.5h-7v-9c0-2-2-3-4.5-3z' fill='white' opacity='0.95'/%3E%3C/svg%3E">
-<meta name="app-version" content="19">
+<meta name="app-version" content="20">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <!-- Firebase SDK -->
@@ -7948,13 +7948,17 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
   const offline = onlineUsers.filter(u => !u.online).sort((a,b) => (b.lastSeen||0) - (a.lastSeen||0));
   const now = Date.now();
 
+  // Search + sort state for unified user list
+  const [userSearch, setUserSearch] = useState('');
+  const [userSort, setUserSort] = useState('default'); // default | name | accuracy | activity | streak | lastSeen
+
   // Load class-wide stats for admin analytics
   const [classStats, setClassStats] = useState(null);
   useEffect(() => {
     if (!firebaseDb) return;
     firebaseDb.ref('userStats').once('value', snap => {
       const data = snap.val() || {};
-      const users = Object.values(data);
+      const users = Object.entries(data).map(([id, u]) => ({id, ...u}));
       if (users.length === 0) { setClassStats(null); return; }
       const totalStudents = users.length;
       const avgAccuracy = Math.round(users.reduce((s, u) => s + (u.accuracy || 0), 0) / totalStudents);
@@ -8000,6 +8004,58 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
   }, []);
 
   const pageLabels = {home:'Home', learn:'Formula Lab', guided:'Guided Practice', challenge:'Challenge', test:'Test Mode', analyze:'Analyzer', dashboard:'Stats', missed:'Missed Bank', pharm:'Pharmacology', labday:'Lab Day', smart:'Smart Study', settings:'Settings', admin:'Admin'};
+
+  // Merge presence + userStats so admins see EVERY known user, not just those with current presence entries
+  const allUsers = useMemo(() => {
+    const map = new Map();
+    onlineUsers.forEach(u => map.set(u.id, {...u}));
+    if (classStats && classStats.allUsers) {
+      classStats.allUsers.forEach(s => {
+        if (!s.id) return;
+        if (map.has(s.id)) {
+          const existing = map.get(s.id);
+          map.set(s.id, {
+            ...existing,
+            username: existing.username || s.username,
+            accuracy: s.accuracy, questionsAttempted: s.questionsAttempted,
+            totalAttempts: s.totalAttempts, studyStreak: s.studyStreak,
+            missedCount: s.missedCount, testsCompleted: s.testsCompleted,
+            avgTestScore: s.avgTestScore, completedCount: s.completedCount
+          });
+        } else {
+          map.set(s.id, {id: s.id, username: s.username, online: false, lastSeen: s.lastUpdated || 0,
+            accuracy: s.accuracy, questionsAttempted: s.questionsAttempted,
+            totalAttempts: s.totalAttempts, studyStreak: s.studyStreak,
+            missedCount: s.missedCount, testsCompleted: s.testsCompleted,
+            avgTestScore: s.avgTestScore, completedCount: s.completedCount});
+        }
+      });
+    }
+    return Array.from(map.values());
+  }, [onlineUsers, classStats]);
+
+  const visibleUsers = useMemo(() => {
+    let list = allUsers;
+    const q = userSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter(u =>
+        (u.username || '').toLowerCase().includes(q) ||
+        (u.id || '').toLowerCase().includes(q)
+      );
+    }
+    const sorters = {
+      name: (a, b) => (a.username || '').localeCompare(b.username || ''),
+      accuracy: (a, b) => (b.accuracy || 0) - (a.accuracy || 0),
+      activity: (a, b) => (b.totalAttempts || 0) - (a.totalAttempts || 0),
+      streak: (a, b) => (b.studyStreak || 0) - (a.studyStreak || 0),
+      lastSeen: (a, b) => (b.lastSeen || 0) - (a.lastSeen || 0),
+      default: (a, b) => {
+        if (!!a.online !== !!b.online) return a.online ? -1 : 1;
+        return (b.lastSeen || 0) - (a.lastSeen || 0);
+      }
+    };
+    return [...list].sort(sorters[userSort] || sorters.default);
+  }, [allUsers, userSearch, userSort]);
 
   const formatDuration = (ms) => {
     if (!ms || ms < 0) return 'just now';
@@ -8190,45 +8246,78 @@ function AdminPanel({ onlineUsers, sendMessage, myId }) {
     React.createElement('div', {className:'admin-tabs'},
       tabList.map(t =>
         React.createElement('button', {key:t, className:'admin-tab'+(tab===t?' active':''), onClick:()=>setTab(t)},
-          t === 'users' ? '\uD83D\uDC65 Users (' + online.length + ')' : t === 'rooms' ? '\uD83D\uDCAC Rooms' : t === 'message' ? '\uD83D\uDCE3 Message' : t === 'analytics' ? '\uD83D\uDCCA Analytics' : t === 'history' ? '\uD83D\uDCDC History' : '\u2699\uFE0F Config'
+          t === 'users' ? '\uD83D\uDC65 Users (' + online.length + '/' + allUsers.length + ')' : t === 'rooms' ? '\uD83D\uDCAC Rooms' : t === 'message' ? '\uD83D\uDCE3 Message' : t === 'analytics' ? '\uD83D\uDCCA Analytics' : t === 'history' ? '\uD83D\uDCDC History' : '\u2699\uFE0F Config'
         )
       )
     ),
     React.createElement('div', {className:'admin-content'},
 
-      // USERS TAB — enhanced with page tracking and session duration
+      // USERS TAB — unified online + offline list with search, sort, and inline stats
       tab === 'users' && React.createElement('div', null,
-        online.length === 0 && React.createElement('p', {style:{color:'var(--text3)', textAlign:'center', padding:20}}, 'No one else online right now.'),
-        online.map(u => React.createElement('div', {key:u.id, className:'online-user online-user-clickable', style:{flexDirection:'column', alignItems:'flex-start', gap:4, cursor:'pointer'}, onClick:()=>setSelectedUser(u)},
-          React.createElement('div', {style:{display:'flex', alignItems:'center', width:'100%', justifyContent:'space-between'}},
-            React.createElement('div', {style:{display:'flex', alignItems:'center', gap:8}},
-              React.createElement('span', {className:'online-dot'}),
-              React.createElement('span', {style:{fontWeight:600}}, u.username || 'Anonymous'),
-              u.id === myId && React.createElement('span', {style:{fontSize:'0.7rem', color:'var(--accent)', fontWeight:600, background:'rgba(99,102,241,0.15)', padding:'2px 6px', borderRadius:4}}, 'you'),
-              u.device === 'mobile' && React.createElement('span', {style:{fontSize:'0.75rem'}}, '\uD83D\uDCF1')
+        // Search + sort bar
+        React.createElement('div', {style:{display:'flex', gap:8, marginBottom:12, flexWrap:'wrap'}},
+          React.createElement('input', {type:'text', placeholder:'\uD83D\uDD0D Search by name or ID...', value:userSearch,
+            onChange:e=>setUserSearch(e.target.value),
+            style:{flex:'1 1 200px', minWidth:160, padding:'8px 12px', borderRadius:8, border:'1px solid var(--surface2)', background:'var(--bg)', color:'var(--text)', fontSize:'0.9rem'}}),
+          React.createElement('select', {value:userSort, onChange:e=>setUserSort(e.target.value),
+            style:{padding:'8px 12px', borderRadius:8, border:'1px solid var(--surface2)', background:'var(--bg)', color:'var(--text)', fontSize:'0.85rem'}},
+            React.createElement('option', {value:'default'}, 'Online first'),
+            React.createElement('option', {value:'lastSeen'}, 'Last seen'),
+            React.createElement('option', {value:'name'}, 'Name (A–Z)'),
+            React.createElement('option', {value:'accuracy'}, 'Accuracy'),
+            React.createElement('option', {value:'activity'}, 'Most active'),
+            React.createElement('option', {value:'streak'}, 'Streak')
+          )
+        ),
+        // Summary chips
+        React.createElement('div', {style:{display:'flex', gap:8, marginBottom:12, flexWrap:'wrap', fontSize:'0.8rem', color:'var(--text3)', alignItems:'center'}},
+          React.createElement('span', {style:{background:'var(--surface)', borderRadius:6, padding:'4px 10px'}},
+            React.createElement('span', {style:{color:'var(--green)', fontWeight:600}}, online.length), ' online'),
+          React.createElement('span', {style:{background:'var(--surface)', borderRadius:6, padding:'4px 10px'}},
+            React.createElement('span', {style:{fontWeight:600, color:'var(--text2)'}}, allUsers.length - online.length), ' offline'),
+          React.createElement('span', {style:{background:'var(--surface)', borderRadius:6, padding:'4px 10px'}},
+            React.createElement('span', {style:{fontWeight:600, color:'var(--text2)'}}, allUsers.length), ' total'),
+          userSearch && React.createElement('span', {style:{background:'var(--surface)', borderRadius:6, padding:'4px 10px', color:'var(--accent)'}},
+            'showing ' + visibleUsers.length),
+          offline.filter(u => u.lastSeen && u.lastSeen < now - 7*86400000).length > 0 &&
+            React.createElement('button', {className:'btn btn-outline btn-sm', style:{fontSize:'0.7rem', padding:'2px 8px', marginLeft:'auto'}, onClick:cleanupStale}, '\uD83E\uDDF9 Cleanup stale')
+        ),
+        // Unified user list
+        visibleUsers.length === 0 && React.createElement('p', {style:{color:'var(--text3)', textAlign:'center', padding:20}},
+          allUsers.length === 0 ? 'No users yet.' : 'No users match your search.'),
+        visibleUsers.map(u => {
+          const isOn = !!u.online;
+          return React.createElement('div', {key:u.id, className:'online-user online-user-clickable',
+            style:{flexDirection:'column', alignItems:'flex-start', gap:4, cursor:'pointer', opacity: isOn ? 1 : 0.78},
+            onClick:()=>setSelectedUser(u)},
+            React.createElement('div', {style:{display:'flex', alignItems:'center', width:'100%', justifyContent:'space-between', gap:8}},
+              React.createElement('div', {style:{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap'}},
+                React.createElement('span', {className: isOn ? 'online-dot' : 'offline-dot'}),
+                React.createElement('span', {style:{fontWeight:600}}, u.username || 'Anonymous'),
+                u.id === myId && React.createElement('span', {style:{fontSize:'0.7rem', color:'var(--accent)', fontWeight:600, background:'rgba(99,102,241,0.15)', padding:'2px 6px', borderRadius:4}}, 'you'),
+                u.banned && React.createElement('span', {style:{fontSize:'0.7rem', color:'var(--red)', fontWeight:600, background:'rgba(239,68,68,0.15)', padding:'2px 6px', borderRadius:4}}, '\uD83D\uDEAB banned'),
+                u.device === 'mobile' && React.createElement('span', {style:{fontSize:'0.75rem'}}, '\uD83D\uDCF1')
+              ),
+              React.createElement('span', {style:{fontSize:'0.75rem', color: isOn ? 'var(--green)' : 'var(--text3)', textAlign:'right', whiteSpace:'nowrap'}},
+                isOn
+                  ? (u.connectedAt ? formatDuration(now - u.connectedAt) + ' session' : 'online')
+                  : (u.lastSeen ? 'last seen ' + new Date(u.lastSeen).toLocaleDateString([], {month:'short', day:'numeric'}) + ' ' + new Date(u.lastSeen).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}) : 'never connected')
+              )
             ),
-            React.createElement('span', {style:{fontSize:'0.75rem', color:'var(--text3)'}},
-              u.connectedAt ? formatDuration(now - u.connectedAt) + ' session' : 'online')
-          ),
-          React.createElement('div', {style:{fontSize:'0.8rem', color:'var(--accent)', marginLeft:20}},
-            '\uD83D\uDCCD ' + (pageLabels[u.page] || u.page || 'unknown'))
-        )),
-        offline.length > 0 && React.createElement('details', {style:{marginTop:12}},
-          React.createElement('summary', {style:{cursor:'pointer', color:'var(--text3)', fontSize:'0.85rem', display:'flex', justifyContent:'space-between', alignItems:'center'}},
-            React.createElement('span', null, 'Recently offline (' + offline.length + ')'),
-            offline.filter(u => u.lastSeen && u.lastSeen < now - 7*86400000).length > 0 &&
-              React.createElement('button', {className:'btn btn-outline btn-sm', style:{fontSize:'0.7rem', padding:'2px 8px'}, onClick:e=>{e.stopPropagation(); cleanupStale();}}, 'Cleanup stale')
-          ),
-          offline.slice(0, 20).map(u => React.createElement('div', {key:u.id, className:'online-user online-user-clickable', style:{cursor:'pointer'}, onClick:()=>setSelectedUser(u)},
-            React.createElement('div', {style:{display:'flex', alignItems:'center'}},
-              React.createElement('span', {className:'offline-dot'}),
-              React.createElement('span', null, u.username || 'Anonymous')
-            ),
-            React.createElement('span', {style:{fontSize:'0.8rem', color:'var(--text3)'}},
-              u.lastSeen ? new Date(u.lastSeen).toLocaleString() : 'unknown'
+            React.createElement('div', {style:{display:'flex', alignItems:'center', gap:10, marginLeft:20, flexWrap:'wrap', fontSize:'0.78rem'}},
+              isOn && React.createElement('span', {style:{color:'var(--accent)'}},
+                '\uD83D\uDCCD ' + (pageLabels[u.page] || u.page || 'unknown')),
+              (u.accuracy != null) && React.createElement('span', {style:{color: (u.accuracy||0) >= 80 ? 'var(--green)' : (u.accuracy||0) >= 60 ? '#f59e0b' : 'var(--red)'}},
+                (u.accuracy||0) + '% acc'),
+              (u.totalAttempts > 0) && React.createElement('span', {style:{color:'var(--text3)'}},
+                u.totalAttempts + ' attempts'),
+              (u.studyStreak > 0) && React.createElement('span', {style:{color:'#f59e0b'}},
+                '\uD83D\uDD25 ' + u.studyStreak + 'd'),
+              (!isOn && !u.totalAttempts) && React.createElement('span', {style:{color:'var(--text3)', fontStyle:'italic'}},
+                'no study data')
             )
-          ))
-        )
+          );
+        })
       ),
 
       // ROOMS TAB — full admin management
