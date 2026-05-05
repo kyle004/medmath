@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MedMaster</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233b82f6'/%3E%3Cstop offset='1' stop-color='%236366f1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Cpath d='M32 12c-2.5 0-4.5 1-4.5 3v9h-7c-2 0-3 2-3 4.5s1 4.5 3 4.5h7v9h-7c-2 0-3 2-3 4.5s1 4.5 3 4.5h7v1c0 2 2 3.5 4.5 3.5s4.5-1.5 4.5-3.5v-1h7c2 0 3-2 3-4.5s-1-4.5-3-4.5h-7v-9h7c2 0 3-2 3-4.5s-1-4.5-3-4.5h-7v-9c0-2-2-3-4.5-3z' fill='white' opacity='0.95'/%3E%3C/svg%3E">
-<meta name="app-version" content="17">
+<meta name="app-version" content="18">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <!-- Firebase SDK -->
@@ -111,6 +111,24 @@
   .step-label { font-weight:600; font-size:0.95rem; }
   .step-input-row { display:flex; gap:10px; align-items:center; margin-top:8px; }
   .step-input-row input { max-width:200px; }
+  /* Inline Step Calculator */
+  .step-calc { margin-top:8px; border-radius:12px; overflow:hidden; background:rgba(0,0,0,0.15); border:1px solid var(--surface2); }
+  .step-calc-expr { display:flex; align-items:center; gap:8px; padding:8px 12px; min-height:42px; background:rgba(0,0,0,0.1); font-family:'SF Mono',SFMono-Regular,'Courier New',monospace; }
+  .step-calc-expr-text { flex:1; font-size:1.05rem; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-height:22px; }
+  .step-calc-expr-text.placeholder { color:var(--text3); font-style:italic; font-size:0.9rem; font-family:inherit; }
+  .step-calc-result { font-weight:700; font-size:1.1rem; white-space:nowrap; }
+  .step-calc-hint { display:inline-flex; align-items:center; gap:4px; padding:4px 12px; margin:6px 10px; border-radius:20px; font-size:0.82rem; cursor:pointer; transition:background 0.15s,transform 0.1s; background:rgba(59,130,246,0.12); color:var(--accent); border:1px solid rgba(59,130,246,0.2); user-select:none; -webkit-user-select:none; }
+  .step-calc-hint:hover { background:rgba(59,130,246,0.22); }
+  .step-calc-hint:active { transform:scale(0.96); }
+  .step-calc-pad { display:grid; grid-template-columns:repeat(5,1fr); gap:1px; padding:4px 6px 6px; }
+  .step-calc-btn { height:38px; border:none; border-radius:8px; cursor:pointer; font-size:1rem; font-weight:500; background:rgba(255,255,255,0.06); color:var(--text); transition:background 0.1s,transform 0.06s; display:flex; align-items:center; justify-content:center; margin:2px; user-select:none; -webkit-user-select:none; font-family:-apple-system,system-ui,sans-serif; }
+  .step-calc-btn:hover { background:rgba(255,255,255,0.12); }
+  .step-calc-btn:active { transform:scale(0.92); background:rgba(255,255,255,0.18); }
+  .step-calc-btn.sc-op { color:var(--accent); font-size:1.15rem; }
+  .step-calc-btn.sc-eq { background:var(--accent); color:#fff; font-size:1.15rem; font-weight:700; }
+  .step-calc-btn.sc-eq:hover { background:#4b91f7; }
+  .step-calc-btn.sc-fn { color:var(--text3); font-size:0.85rem; }
+  .step-calc-unit { padding:2px 10px 8px; text-align:right; font-size:0.82rem; color:var(--text3); }
   .step-hint { font-size:0.8rem; color:var(--text3); margin-top:6px; }
   .step-feedback { font-size:0.85rem; margin-top:6px; padding:8px 12px; border-radius:6px; }
   .step-feedback.correct { background:rgba(34,197,94,0.15); color:var(--green); }
@@ -3432,6 +3450,120 @@ function FormulaCreator({ progress, setProgress }) {
   );
 }
 
+
+// ============================
+// INLINE STEP CALCULATOR
+// ============================
+function StepCalc({ hint, answer, unit, isActive, status, onResult }) {
+  const [expr, setExpr] = useState('');
+  const [result, setResult] = useState(null);
+  const [shaking, setShaking] = useState(false);
+  const ce = React.createElement;
+
+  // Safe expression evaluator
+  const evalExpr = (e) => {
+    try {
+      let s = e.replace(/×/g, '*').replace(/÷/g, '/').replace(/−/g, '-').replace(/,/g, '');
+      // Validate: only numbers, operators, parens, spaces, decimal
+      if (!/^[\d\s+\-*/().]+$/.test(s)) return null;
+      const val = new Function('return (' + s + ')')();
+      if (typeof val !== 'number' || !isFinite(val)) return null;
+      return Math.round(val * 100000000) / 100000000;
+    } catch { return null; }
+  };
+
+  const press = (val) => {
+    if (status === 'correct') return;
+    if (val === 'C') { setExpr(''); setResult(null); return; }
+    if (val === 'DEL') { setExpr(e => e.slice(0, -1)); setResult(null); return; }
+    if (val === '=') {
+      const r = evalExpr(expr);
+      if (r !== null) {
+        setResult(r);
+        // Format result for display
+        const rStr = String(Math.round(r * 10000) / 10000);
+        // Auto-submit to parent
+        if (onResult) onResult(rStr);
+      } else {
+        setShaking(true);
+        setTimeout(() => setShaking(false), 400);
+      }
+      return;
+    }
+    // Prevent double operators
+    const lastChar = expr.slice(-1);
+    const ops = ['+', '-', '×', '÷', '*', '/'];
+    if (ops.includes(val) && ops.includes(lastChar)) {
+      setExpr(e => e.slice(0, -1) + val);
+      return;
+    }
+    setExpr(e => e + val);
+    setResult(null);
+  };
+
+  const loadHint = () => {
+    if (status === 'correct' || !hint) return;
+    // Parse hint into expression: "8 × 60" stays, "(1000 × 15) ÷ 480" stays
+    let h = hint.replace(/=/g, '').trim();
+    // Clean up any trailing results from hint
+    h = h.replace(/\s*≈\s*[\d.]+\s*$/, '').trim();
+    setExpr(h);
+    setResult(null);
+  };
+
+  // Auto-evaluate and submit when hint is loaded and user presses =
+  const fmtResult = result !== null ? String(Math.round(result * 10000) / 10000) : '';
+
+  if (status === 'correct') {
+    return ce('div', {className:'step-calc', style:{background:'rgba(34,197,94,0.06)', borderColor:'rgba(34,197,94,0.2)'}},
+      ce('div', {className:'step-calc-expr', style:{padding:'10px 12px'}},
+        ce('span', {className:'step-calc-expr-text', style:{color:'var(--green)'}}, expr || answer),
+        ce('span', {className:'step-calc-result', style:{color:'var(--green)'}}, '= ' + (result !== null ? fmtResult : answer)),
+        unit && ce('span', {style:{color:'var(--text3)', fontSize:'0.82rem', marginLeft:4}}, unit)
+      )
+    );
+  }
+
+  if (!isActive) return null;
+
+  const btnRow = (...items) => items.map(([label, cls]) =>
+    ce('button', {key:label, className:'step-calc-btn' + (cls ? ' ' + cls : ''), onClick:()=>press(label)}, label)
+  );
+
+  return ce('div', {className:'step-calc', style: shaking ? {animation:'shake 0.3s'} : {}},
+    // Expression display
+    ce('div', {className:'step-calc-expr'},
+      ce('span', {className:'step-calc-expr-text' + (expr ? '' : ' placeholder')},
+        expr || 'Tap hint or type your calculation...'
+      ),
+      result !== null && ce('span', {className:'step-calc-result', style:{color:'var(--accent)'}}, '= ' + fmtResult),
+      result !== null && unit && ce('span', {style:{color:'var(--text3)', fontSize:'0.82rem', marginLeft:2}}, unit)
+    ),
+    // Hint chip
+    hint && ce('div', {style:{padding:'0 4px'}},
+      ce('button', {className:'step-calc-hint', onClick:loadHint, title:'Load this expression'},
+        ce('span', null, '💡'), ' ', hint, '  →'
+      )
+    ),
+    // Keypad
+    ce('div', {className:'step-calc-pad'},
+      ...btnRow(['7',''],['8',''],['9',''],['÷','sc-op'],['DEL','sc-fn']),
+      ...btnRow(['4',''],['5',''],['6',''],['×','sc-op'],['C','sc-fn']),
+      ...btnRow(['1',''],['2',''],['3',''],['−','sc-op'],['(','sc-fn']),
+      ...btnRow(['0',''],['.',''],[')','sc-fn'],['+','sc-op'],['=','sc-eq'])
+    )
+  );
+}
+
+// Shake animation for invalid expressions
+if (!document.getElementById('step-calc-styles')) {
+  const sty = document.createElement('style');
+  sty.id = 'step-calc-styles';
+  sty.textContent = '@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}';
+  document.head.appendChild(sty);
+}
+
+
 function StepByStepSolver({ question, progress, customFormulas, onStepCheck, onComplete }) {
   const [method, setMethod] = useState('formula');
   const [activeStep, setActiveStep] = useState(0);
@@ -3517,23 +3649,15 @@ function StepByStepSolver({ question, progress, customFormulas, onStepCheck, onC
             ce('span', { className:'step-label' }, lbl)
           ),
           !isLocked && ce(React.Fragment, null,
-            ansStr && ce('div', { className:'step-input-row' },
-              ce('input', { type:'text', placeholder:'Your answer...', value: stepInputs[i] || '',
-                onChange: e => setStepInputs(p => ({...p, [i]: e.target.value})),
-                onKeyDown: e => { if (e.key === 'Enter') checkStep(i); },
-                disabled: status === 'correct'
-              }),
-              unitStr && ce('span', { style:{color:'var(--text3)', fontSize:'0.85rem', whiteSpace:'nowrap'} }, unitStr),
-              status !== 'correct' && ce('button', { className:'btn btn-primary btn-sm', onClick:()=>checkStep(i) }, 'Check')
-            ),
+            ansStr && ce(StepCalc, {
+              hint: hintStr, answer: ansStr, unit: unitStr, isActive: isActive, status: status,
+              onResult: (val) => { setStepInputs(p => ({...p, [i]: val})); setTimeout(() => checkStep(i), 50); }
+            }),
             !ansStr && status !== 'correct' && ce('div', { style:{fontSize:'0.85rem', color:'var(--text2)', marginTop:4} }, hintStr),
-            ce('div', { style:{display:'flex', gap:8, marginTop:6} },
-              !showHints[i] && status !== 'correct' && hintStr && ansStr && ce('button', { className:'btn btn-outline btn-sm', onClick:()=>setShowHints(p=>({...p,[i]:true})) }, 'Show Hint'),
-              status === 'wrong' && ansStr && ce('button', { className:'btn btn-outline btn-sm', onClick:()=>showAnswer(i) }, 'Show Answer')
+            status === 'wrong' && ce('div', { style:{display:'flex', gap:8, marginTop:6} },
+              ce('button', { className:'btn btn-outline btn-sm', onClick:()=>showAnswer(i) }, 'Show Answer')
             ),
-            showHints[i] && hintStr && ce('div', { className:'step-hint' }, '\uD83D\uDCA1 ', hintStr),
-            status === 'correct' && ce('div', { className:'step-feedback correct' }, '\u2713 Correct!'),
-            status === 'wrong' && ce('div', { className:'step-feedback incorrect' }, '\u2717 Not quite. Try again or show hint.')
+            status === 'wrong' && ce('div', { className:'step-feedback incorrect' }, '\u2717 Try again or show answer.')
           )
         );
       })
@@ -6309,20 +6433,13 @@ function LabDayTest({ progress, setProgress, isSuperAdmin }) {
               React.createElement('span', {className:'step-label'}, s.label)
             ),
             !isLocked && React.createElement(React.Fragment, null,
-              React.createElement('div', {className:'step-input-row'},
-                React.createElement('input', {type:'text', placeholder:'Your answer...', value:stepInputs[i]||'',
-                  onChange:e=>setStepInputs(p=>({...p,[i]:e.target.value})),
-                  onKeyDown:e=>{if(e.key==='Enter')checkStep(i);},
-                  disabled:status==='correct'
-                }),
-                React.createElement('span', {style:{color:'var(--text3)', fontSize:'0.85rem', whiteSpace:'nowrap'}}, s.unit),
-                status!=='correct' && React.createElement('button', {className:'btn btn-primary btn-sm', onClick:()=>checkStep(i)}, 'Check')
-              ),
-              React.createElement('div', {style:{display:'flex', gap:8, marginTop:6}},
-                !showHints[i] && status!=='correct' && React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>setShowHints(p=>({...p,[i]:true}))}, 'Show Hint'),
-                status==='wrong' && React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>setStepInputs(p=>({...p,[i]:s.answer}))}, 'Show Answer')
-              ),
-              showHints[i] && React.createElement('div', {className:'step-hint'}, '\uD83D\uDCA1 ', s.hint)
+              React.createElement(StepCalc, {
+                hint: s.hint, answer: s.answer, unit: s.unit, isActive: isActive, status: status,
+                onResult: (val) => { setStepInputs(p => ({...p, [i]: val})); setTimeout(() => checkStep(i), 50); }
+              }),
+              status==='wrong' && React.createElement('div', {style:{display:'flex', gap:8, marginTop:6}},
+                React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>setStepInputs(p=>({...p,[i]:s.answer}))}, 'Show Answer')
+              )
             )
           );
         }),
@@ -6769,22 +6886,10 @@ function SmartStudy({ progress, setProgress }) {
                 React.createElement('div', {className:'step-num'}, status==='correct'?'\u2713':i+1),
                 React.createElement('span', {className:'step-label'}, s.label)
               ),
-              !isLocked && React.createElement(React.Fragment, null,
-                React.createElement('div', {className:'step-input-row'},
-                  React.createElement('input', {type:'text', placeholder:'Your answer...', value:stepInputs[i]||'',
-                    onChange:e=>setStepInputs(p=>({...p,[i]:e.target.value})),
-                    onKeyDown:e=>{if(e.key==='Enter')checkStep(i);},
-                    disabled:status==='correct'
-                  }),
-                  React.createElement('span', {style:{color:'var(--text3)', fontSize:'0.85rem', whiteSpace:'nowrap'}}, s.unit),
-                  status!=='correct' && React.createElement('button', {className:'btn btn-primary btn-sm', onClick:()=>checkStep(i)}, 'Check')
-                ),
-                React.createElement('div', {style:{display:'flex', gap:8, marginTop:6}},
-                  !showHints[i] && status!=='correct' && React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>setShowHints(p=>({...p,[i]:true}))}, 'Show Hint'),
-                  status==='wrong' && React.createElement('button', {className:'btn btn-outline btn-sm', onClick:()=>setStepInputs(p=>({...p,[i]:s.answer}))}, 'Show Answer')
-                ),
-                showHints[i] && React.createElement('div', {className:'step-hint'}, '\uD83D\uDCA1 ', s.hint)
-              )
+              !isLocked && ce(StepCalc, {
+                hint: s.hint, answer: String(s.answer), unit: s.unit, isActive: isActive, status: status,
+                onResult: function(val) { setStepInputs(function(p) { var n = Object.assign({}, p); n[i] = val; return n; }); setTimeout(function() { checkStep(i); }, 50); }
+              })
             );
           }),
           completed && React.createElement('div', {style:{textAlign:'center', marginTop:16, padding:16, background:'rgba(34,197,94,0.08)', borderRadius:10}},
